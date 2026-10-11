@@ -2,16 +2,16 @@
 ==== sm50emu summary ====
 exit reason       : --max-frames reached (code 0)
 frames presented  : 100 (Bdisp_PutDisp_DD 100, OS/GetKey presents 0, idle frames while blocked 0)
-instructions      : 667653353 (+ 0 idle cycles in OS waits)
-first frame       : 9001490 instructions (includes start-up)
-instr/frame (2..N): avg 6653049  min 5090118  max 7529221  over 99 frames
-est. HW ms/frame  : avg 56.40  min 43.15  max 63.83  (ESTIMATE: 1 instr = 1 cycle @ 117.96 MHz;
+instructions      : 675402017 (+ 0 idle cycles in OS waits)
+first frame       : 9002943 instructions (includes start-up)
+instr/frame (2..N): avg 6731304  min 5106021  max 7986324  over 99 frames
+est. HW ms/frame  : avg 57.06  min 43.29  max 67.70  (ESTIMATE: 1 instr = 1 cycle @ 117.96 MHz;
                     ignores caches, memory waits, pipeline stalls and OS/LCD transfer time)
-est. HW fps       : 17.7
-emulated time     : 5.660 s
-wall time         : 5.480 s, emulator speed 121.8 MIPS
+est. HW fps       : 17.5
+emulated time     : 5.726 s
+wall time         : 5.638 s, emulator speed 119.8 MIPS
 stack high-water  : 3408 bytes below 0x8c080000 (emulator stack area 0x8c000000-0x8c080000)
-final screen crc32: 62586b78
+final screen crc32: 3ae2cab9
 syscalls          : 305
 heap (sys_malloc) : arena 256 KB at 0x8c300000, in use 0 B, peak 0 B, 0 allocs, 0 frees, 0 failed
 [keys] 10 events loaded from tests/scripts/emu_play.txt

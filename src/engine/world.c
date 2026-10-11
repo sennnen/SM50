@@ -121,6 +121,56 @@ s32 col_find_floor(s32 x, s32 y, s32 z, s32 *out_ny, int *out_tri) {
     return best;
 }
 
+/* First intersection of segment a->b with any collision triangle; returns the hit
+ * fraction in Q16 (0..65536) or 65536 when the segment is clear. */
+s32 col_segment_hit(s32 ax, s32 ay, s32 az, s32 bx, s32 by, s32 bz) {
+    s32 best = 65536;
+    int cx0 = cell_of(MIN(ax, bx)), cx1 = cell_of(MAX(ax, bx)), cz0 = cell_of(MIN(az, bz)), cz1 = cell_of(MAX(az, bz));
+    for (int cz = cz0; cz <= cz1; cz++)
+        for (int cx = cx0; cx <= cx1; cx++) {
+            int c = cz * COL_GRID + cx;
+            for (int cls = 0; cls < 3; cls++) {
+                const u16 *l = sCellList + sCellOff[c][cls];
+                for (int i = 0; i < sCellCnt[c][cls]; i++) {
+                    const u8 *t = TRI(l[i]);
+                    s32 nx = TV(t, 9), ny = TV(t, 10), nz = TV(t, 11);
+                    s32 vx = TV(t, 0), vy = TV(t, 1), vz = TV(t, 2);
+                    s64 da = (s64)nx * (ax - vx) + (s64)ny * (ay - vy) + (s64)nz * (az - vz);
+                    s64 db = (s64)nx * (bx - vx) + (s64)ny * (by - vy) + (s64)nz * (bz - vz);
+                    if ((da > 0 && db > 0) || (da < 0 && db < 0) || da == db) continue;
+                    s32 tt = (s32)((da << 16) / (da - db));
+                    if (tt >= best || tt < 0) continue;
+                    s32 px = ax + (s32)(((s64)(bx - ax) * tt) >> 16), py = ay + (s32)(((s64)(by - ay) * tt) >> 16),
+                        pz = az + (s32)(((s64)(bz - az) * tt) >> 16);
+                    /* drop the dominant normal axis and test the 2D point */
+                    s32 anx = nx < 0 ? -nx : nx, any = ny < 0 ? -ny : ny, anz = nz < 0 ? -nz : nz;
+                    s32 u[3], v[3], pu, pv;
+                    for (int k = 0; k < 3; k++) {
+                        s32 X = TV(t, k * 3), Y = TV(t, k * 3 + 1), Z = TV(t, k * 3 + 2);
+                        if (any >= anx && any >= anz) { u[k] = X; v[k] = Z; }
+                        else if (anx >= anz) { u[k] = Z; v[k] = Y; }
+                        else { u[k] = X; v[k] = Y; }
+                    }
+                    if (any >= anx && any >= anz) { pu = px; pv = pz; }
+                    else if (anx >= anz) { pu = pz; pv = py; }
+                    else { pu = px; pv = py; }
+                    s64 c1 = (s64)(u[1] - u[0]) * (pv - v[0]) - (s64)(v[1] - v[0]) * (pu - u[0]);
+                    s64 c2 = (s64)(u[2] - u[1]) * (pv - v[1]) - (s64)(v[2] - v[1]) * (pu - u[1]);
+                    s64 c3 = (s64)(u[0] - u[2]) * (pv - v[2]) - (s64)(v[0] - v[2]) * (pu - u[2]);
+                    if ((c1 >= 0 && c2 >= 0 && c3 >= 0) || (c1 <= 0 && c2 <= 0 && c3 <= 0)) best = tt;
+                }
+            }
+        }
+    return best;
+}
+
+int col_floor_normal(s32 x, s32 y, s32 z, s32 *nx, s32 *nz) {
+    int t;
+    if (col_find_floor(x, y, z, NULL, &t) == INT32_MIN || t < 0) return 0;
+    *nx = TV(TRI(t), 9); *nz = TV(TRI(t), 11);
+    return 1;
+}
+
 s32 col_find_ceil(s32 x, s32 y, s32 z) {
     int c = cell_of(z) * COL_GRID + cell_of(x);
     s32 best = INT32_MAX;

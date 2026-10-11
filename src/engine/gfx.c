@@ -457,24 +457,26 @@ static void raster_tri(const RVtx *a, const RVtx *b, const RVtx *c) {
             if (x0 < 0) x0 = 0;
             if (x1 > sW) x1 = sW;
             if (x0 < x1) {
-                s32 pre = ((x0 << 16) + 0x8000) - xleft;
-                s32 q = qL + (s32)(((s64)dq * pre) >> 16);
+                s32 pre = (((x0 << 16) + 0x8000) - xleft) >> 8; /* Q8, 0..256 */
+#define PRE(d) (((d) >> 8) * pre)
+                s32 q = qL + PRE(dq);
                 int n = x1 - x0;
                 gGfxStats.pixels += n;
                 if (tex) {
                     s32 sh = 0;
                     if (shade) {
-                        s32 r0 = rL + (s32)(((s64)dr * pre) >> 16), g0 = gL + (s32)(((s64)dg * pre) >> 16), b0 = bL + (s32)(((s64)db * pre) >> 16);
+                        s32 r0 = rL + PRE(dr), g0 = gL + PRE(dg), b0 = bL + PRE(db);
                         sh = (r0 * 5 + g0 * 9 + b0 * 2) >> 4;
                     }
-                    span_tex(crow + x0, zrow + x0, n, q, dq, uL + (s32)(((s64)duq * pre) >> 16), duq,
-                             vL + (s32)(((s64)dvq * pre) >> 16), dvq, sh, dsh);
+                    span_tex(crow + x0, zrow + x0, n, q, dq, uL + PRE(duq), duq,
+                             vL + PRE(dvq), dvq, sh, dsh);
                 } else {
                     s32 r0 = 0, g0 = 0, b0 = 0;
-                    if (shade) { r0 = rL + (s32)(((s64)dr * pre) >> 16); g0 = gL + (s32)(((s64)dg * pre) >> 16); b0 = bL + (s32)(((s64)db * pre) >> 16); }
+                    if (shade) { r0 = rL + PRE(dr); g0 = gL + PRE(dg); b0 = bL + PRE(db); }
                     span_color(crow + x0, zrow + x0, n, q, dq, r0, dr, g0, dg, b0, db);
                 }
             }
+#undef PRE
             xleft += dxl; xright += dxr; qL += dqL;
             if (tex) { uL += duL; vL += dvL; }
             if (shade) { rL += drL; gL += dgL; bL += dbL; }

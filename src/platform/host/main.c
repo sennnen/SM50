@@ -27,6 +27,43 @@ static u16 parse_buttons(char *s) {
     return b;
 }
 
+/* waypoint autopilot (tests): "x z [jump]" per line */
+static struct { s32 x, z; int jump; } sRoute[256];
+static int sRouteLen, sRouteIdx, sJumpHold;
+
+static void load_route(const char *path) {
+    FILE *f = fopen(path, "r");
+    if (!f) { perror(path); exit(1); }
+    char line[128];
+    while (fgets(line, sizeof line, f) && sRouteLen < 256) {
+        int x, z; char j[16] = "";
+        if (line[0] == '#') continue;
+        if (sscanf(line, "%d %d %15s", &x, &z, j) >= 2) {
+            sRoute[sRouteLen].x = x; sRoute[sRouteLen].z = z; sRoute[sRouteLen].jump = j[0] == 'j'; sRouteLen++;
+        }
+    }
+    fclose(f);
+}
+
+static u16 autopilot(void) {
+    if (sRouteIdx >= sRouteLen) return 0;
+    const Player *p = &gGame.p;
+    s32 dx = sRoute[sRouteIdx].x - (p->x >> 8), dz = sRoute[sRouteIdx].z - (p->z >> 8);
+    s32 d = (s32)isqrt64((u64)((s64)dx * dx + (s64)dz * dz));
+    u16 b = 0;
+    if (sJumpHold > 0) { sJumpHold--; b |= BTN_JUMP; }
+    if (sRoute[sRouteIdx].jump && d < 260 && sJumpHold == 0 && p->on_ground) { sJumpHold = 10; b |= BTN_JUMP; }
+    if (d < 60) { sRouteIdx++; return b; }
+    u16 want = fatan2(dx, dz);
+    s16 rel = (s16)(want - gGame.cam.yaw);
+    static const struct { s16 ang; u16 btn; } dirs[8] = {
+        { 0, BTN_UP }, { 0x2000, BTN_UP | BTN_LEFT }, { 0x4000, BTN_LEFT }, { 0x6000, BTN_DOWN | BTN_LEFT },
+        { -0x8000, BTN_DOWN }, { -0x6000, BTN_DOWN | BTN_RIGHT }, { -0x4000, BTN_RIGHT }, { -0x2000, BTN_UP | BTN_RIGHT } };
+    int best = 0; s32 bd = 0x7FFFFFFF;
+    for (int i = 0; i < 8; i++) { s32 e = (s16)(rel - dirs[i].ang); if (e < 0) e = -e; if (e < bd) { bd = e; best = i; } }
+    return b | dirs[best].btn;
+}
+
 static void load_script(const char *path) {
     FILE *f = fopen(path, "r");
     if (!f) { perror(path); exit(1); }
@@ -64,6 +101,7 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "--keys") && i + 1 < argc) keys = argv[++i];
         else if (!strcmp(argv[i], "--outdir") && i + 1 < argc) outdir = argv[++i];
         else if (!strcmp(argv[i], "--log") && i + 1 < argc) log_path = argv[++i];
+        else if (!strcmp(argv[i], "--route") && i + 1 < argc) load_route(argv[++i]);
         else if (!strcmp(argv[i], "--shot-every") && i + 1 < argc) shot_every = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--shot-at") && i + 1 < argc) {
             for (char *t = strtok(argv[++i], ","); t && nshots < 64; t = strtok(NULL, ",")) shots[nshots++] = atoi(t);
@@ -90,14 +128,14 @@ int main(int argc, char **argv) {
     clock_t t0 = clock();
     for (int f = 0; f < frames; f++) {
         while (si < sScriptLen && sScript[si].frame <= f) held = sScript[si++].buttons;
-        game_tick(held);
+        game_tick(sRouteLen ? autopilot() : held);
         memset(&gGfxStats, 0, sizeof gGfxStats);
         game_render(1, 300);
         tris += gGfxStats.tris_drawn; px += gGfxStats.pixels;
         const Player *p = &gGame.p;
-        if (lf) fprintf(lf, "%d x=%d y=%d z=%d act=%d ground=%d fwd=%d vy=%d coins=%d health=%d stars=%d tris=%u px=%u\n", f,
+        if (lf) fprintf(lf, "%d x=%d y=%d z=%d act=%d ground=%d fwd=%d vy=%d coins=%d health=%d stars=%d tris=%u px=%u cam=%d,%d,%d foc=%d,%d,%d pitch=%d ray=%d\n", f,
                         p->x >> 8, p->y >> 8, p->z >> 8, p->action, p->on_ground, p->fwd >> 8, p->vy >> 8, p->coins,
-                        p->health, p->stars, gGfxStats.tris_drawn, gGfxStats.pixels);
+                        p->health, p->stars, gGfxStats.tris_drawn, gGfxStats.pixels, gGame.cam.x, gGame.cam.y, gGame.cam.z, gGame.cam.fx, gGame.cam.fy, gGame.cam.fz, gGame.cam.pitch, col_segment_hit(gGame.cam.fx, gGame.cam.fy, gGame.cam.fz, gGame.cam.x, gGame.cam.y, gGame.cam.z));
         int shoot = shot_every && (f % shot_every == shot_every - 1);
         for (int k = 0; k < nshots; k++) if (shots[k] == f) shoot = 1;
         if (shoot) {
@@ -111,6 +149,7 @@ int main(int argc, char **argv) {
     const Player *p = &gGame.p;
     printf("final x=%d y=%d z=%d act=%d coins=%d health=%d stars=%d\n", p->x >> 8, p->y >> 8, p->z >> 8, p->action,
            p->coins, p->health, p->stars);
+    if (sRouteLen) printf("route: reached waypoint %d/%d\n", sRouteIdx, sRouteLen);
     if (lf) fclose(lf);
     return 0;
 }

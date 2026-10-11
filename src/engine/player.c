@@ -139,10 +139,14 @@ void player_tick(Player *p, u16 b, u16 pressed, u16 cam_yaw) {
     p->sx = approach_s32(p->sx, 0, Q(1), Q(1));
     p->sz = approach_s32(p->sz, 0, Q(1), Q(1));
     if (p->action == ACT_SLIDE) {
-        /* slide down the slope: accelerate along -gradient using floor normal */
-        int tri;
-        col_find_floor(p->x >> 8, p->y >> 8, p->z >> 8, NULL, &tri);
-        (void)tri;
+        /* slide down the slope: accelerate along the floor normal's horizontal part */
+        s32 nx, nz;
+        if (col_floor_normal(p->x >> 8, p->y >> 8, p->z >> 8, &nx, &nz)) {
+            p->sx += (nx * 6) >> 6; p->sz += (nz * 6) >> 6;
+            s32 lim = Q(40);
+            p->sx = CLAMP(p->sx, -lim, lim); p->sz = CLAMP(p->sz, -lim, lim);
+            vx += p->sx; vz += p->sz;
+        }
     }
 
     /* move in up to 4 substeps so fast motion doesn't tunnel through walls */
@@ -153,12 +157,12 @@ void player_tick(Player *p, u16 b, u16 pressed, u16 cam_yaw) {
         s32 nx = p->x + vx / steps, nz = p->z + vz / steps;
         s32 yw = p->y >> 8;
         u16 wy = 0;
-        int h = col_resolve_walls(&nx, yw + 30, &nz, RADIUS, &wy);
-        h += col_resolve_walls(&nx, yw + 90, &nz, RADIUS, &wy);
+        int h = col_resolve_walls(&nx, yw + STEP_UP + 10, &nz, RADIUS, &wy); /* low walls are steps: handled by the ledge check */
+        h += col_resolve_walls(&nx, yw + 130, &nz, RADIUS, &wy);
         if (h) { touched_wall = 1; p->wall_yaw = wy; }
         /* ledge / step check */
         s32 ny;
-        s32 fy = col_find_floor(nx >> 8, (p->y >> 8) + STEP_UP - 100 + 30, nz >> 8, &ny, NULL);
+        s32 fy = col_find_floor(nx >> 8, (p->y >> 8) + STEP_UP - 100, nz >> 8, &ny, NULL);
         if (fy == INT32_MIN) {
             /* out of the world: block */
             continue;

@@ -5,6 +5,7 @@ PASS gameplay: jump leaves the ground and lands
 PASS gameplay: coin collection: coins=1
 PASS gameplay: enemy contact causes damage/knockback: health=6
 PASS gameplay: never falls through terrain: min y=4
+PASS gameplay: autopilot climbs the tower stairs and collects the star: final pos (1649,1213,-1510) stars=1 coins=8
 PASS g3a container checksums:   RESULT: valid
-PASS emulator: add-in boots and presents 100 frames: est. 17.7 fps (instruction-count estimate)
-PASS emulator: 3D scene rendered and changes with input: 170 colours in frame 70, 75676 pixels changed since frame 1
+PASS emulator: add-in boots and presents 100 frames: est. 17.5 fps (instruction-count estimate)
+PASS emulator: 3D scene rendered and changes with input: 164 colours in frame 70, 75652 pixels changed since frame 1

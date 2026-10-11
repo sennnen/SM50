@@ -27,6 +27,20 @@ static void show_msg(const char *s) {
 }
 
 /* ----------------------------------------------------------------- camera */
+#define CAM_STEPS 8
+/* number of clear eighths of the focus->camera segment for a camera at `yaw` */
+static int cam_clear_steps(const Camera *c, u16 yaw) {
+    s32 h = (s32)(((s64)c->dist * fcos((u16)c->pitch)) >> 14);
+    s32 ex = c->fx - (s32)(((s64)h * fsin(yaw)) >> 14), ez = c->fz - (s32)(((s64)h * fcos(yaw)) >> 14);
+    s32 ey = c->fy + (s32)(((s64)c->dist * fsin((u16)c->pitch)) >> 14) + 60;
+    s32 t = col_segment_hit(c->fx, c->fy, c->fz, ex, ey, ez);
+    if (t >= 65536) return CAM_STEPS;
+    int k = (int)((t * CAM_STEPS) >> 16) - 1; /* stay a bit in front of the hit */
+    return k < 0 ? 0 : k;
+}
+
+/* ---- camera tick ---- */
+static void camera_tick(Camera *c, const Player *p, u16 b, u16 pressed);
 static void camera_tick(Camera *c, const Player *p, u16 b, u16 pressed) {
     if (b & BTN_CAM_L) c->yaw = (u16)(c->yaw - 0x300);
     if (b & BTN_CAM_R) c->yaw = (u16)(c->yaw + 0x300);
@@ -50,6 +64,35 @@ static void camera_tick(Camera *c, const Player *p, u16 b, u16 pressed) {
     c->x = c->fx - (s32)(((s64)h * fsin(c->yaw)) >> 14);
     c->z = c->fz - (s32)(((s64)h * fcos(c->yaw)) >> 14);
     c->y = c->fy + (s32)(((s64)c->dist * fsin((u16)c->pitch)) >> 14) + 60;
+    /* occlusion: march from the focus towards the camera; stop before the first wall.
+     * If the view is blocked close to the focus, swing the yaw towards a clear side. */
+    {
+        int k = cam_clear_steps(c, c->yaw);
+        /* blocked views raise the pitch (look down over the character), clear views relax it */
+        s16 want_pitch = k < CAM_STEPS ? 0x2600 : 0x0A00;
+        c->pitch = approach_angle(c->pitch, want_pitch, k < CAM_STEPS ? 0x0300 : 0x0080);
+        if (k < CAM_STEPS) {
+            if (!(b & (BTN_CAM_L | BTN_CAM_R))) {
+                /* find the nearest yaw offset with a clear line of sight and turn towards it */
+                static const s16 offs[6] = { 0x2000, -0x2000, 0x4000, -0x4000, 0x6000, -0x6000 };
+                for (int i = 0; i < 6; i++)
+                    if (cam_clear_steps(c, (u16)(c->yaw + offs[i])) == CAM_STEPS) {
+                        c->yaw = (u16)(c->yaw + (offs[i] > 0 ? 0x0500 : -0x0500));
+                        break;
+                    }
+            }
+            if (k < 1) k = 1;
+            { c->x = c->fx + (c->x - c->fx) * k / CAM_STEPS; c->y = c->fy + (c->y - c->fy) * k / CAM_STEPS;
+              c->z = c->fz + (c->z - c->fz) * k / CAM_STEPS; }
+        }
+        s32 cy = col_find_ceil(c->x, c->fy, c->z);
+        if (cy != INT32_MAX && (cy >> 8) < c->y + 20 && (cy >> 8) > c->fy) c->y = (cy >> 8) - 20;
+    }
+    /* keep the camera out of walls (sphere push at camera height) */
+    {
+        s32 cx = c->x * 256, cz = c->z * 256;
+        if (col_resolve_walls(&cx, c->y, &cz, 60, NULL)) { c->x = cx >> 8; c->z = cz >> 8; }
+    }
     /* keep above terrain */
     s32 fy = col_find_floor(c->x, c->y + 400, c->z, NULL, NULL);
     if (fy != INT32_MIN && c->y < (fy >> 8) + 80) c->y = (fy >> 8) + 80;
@@ -223,6 +266,7 @@ static void draw_hud(int show_fps, int fps10) {
     if (gGame.msg_timer > 0 || gGame.won) {
         const char *m = gGame.won ? "STAR GET! YOU WIN" : gGame.msg;
         int big = s + 1;
+        while (big > 1 && gfx_text_width(m, big) > gfx_width() - 4) big--;
         gfx_draw_text((gfx_width() - gfx_text_width(m, big)) / 2, gfx_height() / 3, m, 0xFFE0, big);
     }
     if (gGame.paused) gfx_draw_text((gfx_width() - gfx_text_width("PAUSED", s + 1)) / 2, gfx_height() / 2, "PAUSED", 0xFFFF, s + 1);

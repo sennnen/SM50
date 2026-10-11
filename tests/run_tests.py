@@ -42,7 +42,7 @@ def host(script, frames, extra=()):
     rows = []
     for line in open(log):
         d = dict(kv.split("=") for kv in line.split()[1:])
-        rows.append({k: int(v) for k, v in d.items()})
+        rows.append({k: int(v) for k, v in d.items() if v.lstrip("-").isdigit()})
     return r, rows
 
 
@@ -62,8 +62,8 @@ record("gameplay: never falls through terrain", fell, f"min y={min(rw['y'] for r
 
 # 4. full route to the star (scripted speedrun of the test level)
 if os.path.exists(os.path.join(ROOT, "tests/scripts/star_route.txt")):
-    r, rows = host("tests/scripts/star_route.txt", 1400, ["--shot-at", "1399"])
-    record("gameplay: scripted route reaches the star", rows[-1]["stars"] >= 1,
+    r, rows = host("tests/scripts/star_route.txt", 700, ["--route", "tests/scripts/star_route.wp", "--shot-at", "330,699"])
+    record("gameplay: autopilot climbs the tower stairs and collects the star", rows[-1]["stars"] >= 1,
            f"final pos ({rows[-1]['x']},{rows[-1]['y']},{rows[-1]['z']}) stars={rows[-1]['stars']} coins={rows[-1]['coins']}")
 
 # 5. g3a validation

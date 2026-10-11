@@ -35,6 +35,9 @@ s32 col_find_ceil(s32 x, s32 y, s32 z);
  * Returns number of walls touched; wall normal yaw of the last one in *wall_yaw. */
 int col_resolve_walls(s32 *xq8, s32 y, s32 *zq8, s32 radius, u16 *wall_yaw);
 u32 col_tri_count(void);
+s32 col_segment_hit(s32 ax, s32 ay, s32 az, s32 bx, s32 by, s32 bz);
+/* Horizontal components (Q14) of the normal of the floor under (x, y, z). */
+int col_floor_normal(s32 x, s32 y, s32 z, s32 *nx, s32 *nz);
 
 /* ---- level ---- */
 #define OBJ_COIN 1
