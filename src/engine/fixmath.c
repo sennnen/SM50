@@ -93,10 +93,10 @@ void mat_lookat(Mat34 *m, Vec3i eye, Vec3i target) {
     s32 fx = target.x - eye.x, fy = target.y - eye.y, fz = target.z - eye.z;
     u32 len = isqrt64((u64)((s64)fx * fx + (s64)fy * fy + (s64)fz * fz));
     if (len == 0) { mat_identity(m); return; }
-    fx = (s32)(((s64)fx << 14) / len); fy = (s32)(((s64)fy << 14) / len); fz = (s32)(((s64)fz << 14) / len);
+    fx = (s32)(((s64)fx * 16384) / len); fy = (s32)(((s64)fy * 16384) / len); fz = (s32)(((s64)fz * 16384) / len);
     s32 rx = -fz, rz = fx;
     u32 rl = isqrt32((u32)(rx * rx + rz * rz));
-    if (rl == 0) { rx = ONE14; rz = 0; } else { rx = (rx << 14) / (s32)rl; rz = (rz << 14) / (s32)rl; }
+    if (rl == 0) { rx = ONE14; rz = 0; } else { rx = rx * 16384 / (s32)rl; rz = rz * 16384 / (s32)rl; }
     s32 ux = -mul14(rz, fy), uy = mul14(rz, fx) - mul14(rx, fz), uz = mul14(rx, fy);
     m->m[0][0] = rx; m->m[0][1] = 0;  m->m[0][2] = rz;
     m->m[1][0] = ux; m->m[1][1] = uy; m->m[1][2] = uz;

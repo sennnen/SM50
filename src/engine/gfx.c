@@ -567,7 +567,7 @@ static void draw_triangle(int i0, int i1, int i2) {
         int ain = a->z >= sNear, bin = b->z >= sNear;
         if (ain) o[n++] = *a;
         if (ain != bin) {
-            s32 t = (s32)(((s64)(sNear - a->z) << 16) / (b->z - a->z));
+            s32 t = (s32)(((s64)(sNear - a->z) * 65536) / (b->z - a->z));
             cv_lerp(&o[n], a, b, t); o[n].z = sNear; n++;
         }
     }

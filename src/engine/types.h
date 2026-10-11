@@ -17,7 +17,7 @@ typedef int64_t s64; typedef uint64_t u64;
 #define BE32(p) (*(const u32 *)(p))
 #else
 #define BE16(p) ((u16)((((const u8 *)(p))[0] << 8) | ((const u8 *)(p))[1]))
-#define BE32(p) ((u32)((((const u8 *)(p))[0] << 24) | (((const u8 *)(p))[1] << 16) | \
+#define BE32(p) ((u32)(((u32)((const u8 *)(p))[0] << 24) | ((u32)((const u8 *)(p))[1] << 16) | \
                        (((const u8 *)(p))[2] << 8) | ((const u8 *)(p))[3]))
 #endif
 #define BES16(p) ((s16)BE16(p))
