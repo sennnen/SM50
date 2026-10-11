@@ -1,0 +1,12 @@
+# frame buttons
+0
+10 up
+40 up jump
+41 up
+60 up jump
+61 up
+75 up jump
+76 up
+110 left
+140 right
+170

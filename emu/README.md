@@ -198,6 +198,36 @@ calculator. The libfxcg linker script only assumes 64 KB at `0x08100004`.
 The real OS heap may be smaller than the 256 KB arena (the summary warns
 above 128 KB). The real stack location and size differ from the emulator's.
 
+## Add-in side
+
+The test add-in in `test-addin/` (crt0.S, syscalls.S, addin.ld, Makefile) is
+a minimal libfxcg-free template that works under the emulator:
+
+```sh
+SH=/opt/sh-elf/bin/sh-elf-
+${SH}gcc -m4-nofpu -mb -O2 -ffreestanding -nostdlib -fno-pie -c ...
+${SH}gcc -m4-nofpu -mb -nostdlib -fno-pie -T addin.ld crt0.o *.o -lgcc -o a.elf
+${SH}objcopy -O binary -R .bss a.elf a.bin
+tools/mkg3a.py -n basic:SM50 -i uns:icon_uns.png -i sel:icon_sel.png a.bin SM50.g3a
+tools/g3a_check.py SM50.g3a
+```
+
+The debug-print stub uses the same calling convention as every other syscall:
+
+```asm
+    .global _sm50_debug_print      /* void sm50_debug_print(const char *s); */
+_sm50_debug_print:
+    mov.l 1f, r2
+    mov.l 2f, r0
+    jmp @r2
+    nop
+    .align 2
+1:  .long 0x80020070
+2:  .long 0x7FFF
+```
+
+Only call it from emulator or debug builds.
+
 ## Known limitations
 
 * There is no OS, so the status bar, fonts, menus and dialogs are not rendered.

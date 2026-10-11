@@ -1,0 +1,11 @@
+# frame action KEY  (frame = number of presents so far)
+5 down UP
+30 down SHIFT
+31 up SHIFT
+45 down SHIFT
+46 up SHIFT
+60 up UP
+60 down LEFT
+75 up LEFT
+75 down F1
+90 up F1
