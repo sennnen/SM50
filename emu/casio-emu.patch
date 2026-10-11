@@ -1,0 +1,57 @@
+diff --git a/src/interpreter.c b/src/interpreter.c
+index 32ad260..b0a4ce6 100644
+--- a/src/interpreter.c
++++ b/src/interpreter.c
+@@ -24,6 +24,8 @@
+ #include "hardware/debug/debug.h"
+ #include "interrupts.h"
+ 
++bool sm50_hle_hook(void);
++
+ CpuState cpu = {0};
+ 
+ void test(void);
+@@ -112,27 +114,9 @@ void runIterationsCPU(int interationsToRun) {
+     //   cpu.reg.PC = cpu.reg.PR;
+     // }
+ 
+-    if (cpu.reg.PC == 0x80020070) {
+-      // printf("Syscall: %04x\n", cpu.reg.r0);
+-      // if (cpu.reg.r0 == 0x0eab) {
+-      //   // GetKey
+-      //   cpu.reg.r0 = 0;
+-      //   // printf("ptr: %08x\n", cpu.reg.r4);
+-      //   writeMemory(cpu.reg.r4, 4, 0x7534);
+-      //   cpu.reg.PC = cpu.reg.PR;
+-      // }
+-      // if (cpu.reg.r0 == 0x12bf) {
+-      //   // GetKeyWait_OS
+-      //   cpu.reg.r0 = 0;
+-      //   writeMemory(cpu.reg.r4, 4, 0x03);
+-      //   writeMemory(cpu.reg.r5, 4, 0x02);
+-      //   cpu.reg.PC = cpu.reg.PR;
+-      // }
+-      // if (cpu.reg.r0 == 0x0d39) {
+-      //   // PRGM_GetKey_OS
+-      //   // TODO?
+-      //   cpu.reg.PC = cpu.reg.PR;
+-      // }
++    // SM50: OS syscall HLE / exit / exception hook (sm50_hle.c)
++    if ((cpu.reg.PC & 0xDFFFE000) == 0x80020000 && sm50_hle_hook()) {
++      continue;
+     }
+ 
+     // TODO: Check alignment
+diff --git a/src/memory/memory.c b/src/memory/memory.c
+index d7d09da..8d54849 100644
+--- a/src/memory/memory.c
++++ b/src/memory/memory.c
+@@ -68,7 +68,7 @@ void initMemory(const char* filename) {
+   // memory = calloc(0xffffffff, sizeof(u8));
+ 
+   // Allocate a memory area at 0x80000000 (ROM)
+-  int romSize = (1024 * 1024 * (32 + 2));
++  int romSize = (1024 * 1024 * (32 + 16)); // SM50: room for add-ins up to 16 MB
+   int g3aOffset = (1024 * 1024 * 32);
+   void* rom = allocMemArea(0x80000000, 0x80000000 + romSize);
+   // Load g3a

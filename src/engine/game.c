@@ -1,0 +1,269 @@
+/* SM50 game loop: camera, objects, rendering and HUD. */
+#include "game.h"
+#include "world.h"
+#include "gfx.h"
+#include <string.h>
+#include <stdio.h>
+
+Game gGame;
+
+int game_init(const void *pack, u32 size, u8 *work, u32 work_size) {
+    memset(&gGame, 0, sizeof(gGame));
+    int r = level_load(pack, size, work, work_size);
+    if (r) return r;
+    Player *p = &gGame.p;
+    p->health = 8; p->lives = 4;
+    player_spawn(p);
+    Camera *c = &gGame.cam;
+    c->yaw = (u16)(gLevel.spawn_yaw);
+    c->pitch = 0x0A00; c->dist = c->target_dist = 900;
+    c->fx = p->x >> 8; c->fy = (p->y >> 8) + 100; c->fz = p->z >> 8;
+    return 0;
+}
+
+static void show_msg(const char *s) {
+    strncpy(gGame.msg, s, sizeof(gGame.msg) - 1);
+    gGame.msg_timer = 60;
+}
+
+/* ----------------------------------------------------------------- camera */
+static void camera_tick(Camera *c, const Player *p, u16 b, u16 pressed) {
+    if (b & BTN_CAM_L) c->yaw = (u16)(c->yaw - 0x300);
+    if (b & BTN_CAM_R) c->yaw = (u16)(c->yaw + 0x300);
+    if (pressed & BTN_CAM_ZOOM) { c->zoom = (c->zoom + 1) % 3; }
+    static const s32 dists[3] = { 900, 600, 1300 };
+    c->target_dist = dists[c->zoom];
+    c->dist += (c->target_dist - c->dist) / 6;
+    /* lazily swing behind the player while running and not steering the camera */
+    if (!(b & (BTN_CAM_L | BTN_CAM_R)) && p->fwd > 15 * 256 && (b & (BTN_LEFT | BTN_RIGHT)) == 0 &&
+        p->action == ACT_WALK) {
+        c->yaw = (u16)approach_angle((s16)c->yaw, (s16)p->face_yaw, 0x0080);
+    }
+    /* focus smoothing */
+    s32 tx = p->x >> 8, ty = (p->y >> 8) + 110, tz = p->z >> 8;
+    c->fx += (tx - c->fx) / 2;
+    c->fz += (tz - c->fz) / 2;
+    s32 dy = ty - c->fy;
+    if (p->on_ground || dy < -200 || dy > 300) c->fy += dy / 4;
+    /* camera position: behind focus along yaw */
+    s32 h = (s32)(((s64)c->dist * fcos((u16)c->pitch)) >> 14);
+    c->x = c->fx - (s32)(((s64)h * fsin(c->yaw)) >> 14);
+    c->z = c->fz - (s32)(((s64)h * fcos(c->yaw)) >> 14);
+    c->y = c->fy + (s32)(((s64)c->dist * fsin((u16)c->pitch)) >> 14) + 60;
+    /* keep above terrain */
+    s32 fy = col_find_floor(c->x, c->y + 400, c->z, NULL, NULL);
+    if (fy != INT32_MIN && c->y < (fy >> 8) + 80) c->y = (fy >> 8) + 80;
+    if (c->y < gLevel.water_y + 40) c->y = gLevel.water_y + 40;
+}
+
+/* ---------------------------------------------------------------- objects */
+static s32 dist2(s32 ax, s32 ay, s32 az, s32 bx, s32 by, s32 bz) {
+    s32 dx = ax - bx, dy = ay - by, dz = az - bz;
+    if (dx > 2000 || dx < -2000 || dy > 2000 || dy < -2000 || dz > 2000 || dz < -2000) return 0x7FFFFFFF;
+    return dx * dx + dy * dy + dz * dz;
+}
+
+static void objects_tick(Player *p) {
+    s32 px = p->x >> 8, py = p->y >> 8, pz = p->z >> 8;
+    for (int i = 0; i < gLevel.n_objs; i++) {
+        Obj *o = &gLevel.objs[i];
+        if (!o->active) continue;
+        o->timer++;
+        switch (o->type) {
+            case OBJ_COIN:
+                o->yaw = (u16)(o->yaw + 0x0800);
+                if (dist2(px, py + 60, pz, o->x, o->y, o->z) < 110 * 110) {
+                    o->active = 0; p->coins++;
+                    if (p->health < 8) p->health++;
+                }
+                break;
+            case OBJ_STAR:
+                o->yaw = (u16)(o->yaw + 0x0600);
+                if (dist2(px, py + 60, pz, o->x, o->y, o->z) < 140 * 140 && !gGame.won) {
+                    o->active = 0; p->stars++;
+                    gGame.won = 1; gGame.win_timer = 0;
+                    p->action = ACT_WIN; p->action_timer = 0;
+                    show_msg("STAR GET!");
+                }
+                break;
+            case OBJ_BLOB: {
+                if (o->state == 0) {
+                    /* patrol in a circle around home; chase when close */
+                    s32 d = dist2(px, py, pz, o->x, o->y, o->z);
+                    u16 dir;
+                    if (d < 700 * 700) dir = fatan2(px - o->x, pz - o->z);
+                    else dir = (u16)(fatan2(o->hx - o->x, o->hz - o->z) + ((o->timer & 128) ? 0x3000 : -0x3000));
+                    o->yaw = (u16)approach_angle((s16)o->yaw, (s16)dir, 0x0300);
+                    s32 spd = d < 700 * 700 ? 9 : 5;
+                    s32 nx = o->x + ((spd * fsin(o->yaw)) >> 14), nz = o->z + ((spd * fcos(o->yaw)) >> 14);
+                    s32 fy = col_find_floor(nx, o->y + 60, nz, NULL, NULL);
+                    if (fy != INT32_MIN && (fy >> 8) > gLevel.water_y + 10 && (fy >> 8) - o->y < 60 && o->y - (fy >> 8) < 100) {
+                        o->x = nx; o->z = nz; o->y = fy >> 8;
+                    }
+                    if (d < 120 * 120 + 0 && py < o->y + 140) {
+                        if (p->vy < 0 && py > o->y + 50) {
+                            /* stomped */
+                            o->state = 1; o->timer = 0;
+                            p->vy = 40 * 256; p->on_ground = 0; p->action = ACT_DOUBLE_JUMP; p->action_timer = 0;
+                            p->coins++;
+                        } else if (p->invuln == 0) {
+                            p->health -= 2; p->invuln = 60;
+                            p->action = ACT_KNOCKBACK; p->action_timer = 0; p->on_ground = 0;
+                            p->vy = 30 * 256; p->fwd = 0;
+                            u16 away = fatan2(px - o->x, pz - o->z);
+                            p->sx = (24 * fsin(away)) >> 6; p->sz = (24 * fcos(away)) >> 6;
+                        }
+                    }
+                } else {
+                    if (o->timer > 20) o->active = 0; /* squash then vanish */
+                }
+                break;
+            }
+            default: break;
+        }
+    }
+    if (p->health <= 0) {
+        p->lives--; p->health = 8; player_spawn(p);
+        show_msg(p->lives > 0 ? "OUCH! TRY AGAIN" : "GAME OVER");
+        if (p->lives <= 0) p->lives = 4;
+    }
+}
+
+void game_tick(u16 buttons) {
+    Game *g = &gGame;
+    g->pressed = buttons & ~g->prev_buttons;
+    g->prev_buttons = buttons;
+    g->buttons = buttons;
+    if (g->pressed & BTN_PAUSE) g->paused = !g->paused;
+    if (g->paused) return;
+    g->ticks++;
+    player_tick(&g->p, buttons, g->pressed, g->cam.yaw);
+    objects_tick(&g->p);
+    camera_tick(&g->cam, &g->p, buttons, g->pressed);
+    if (g->msg_timer > 0) g->msg_timer--;
+    if (g->won) g->win_timer++;
+}
+
+/* ---------------------------------------------------------------- render */
+static void draw_sky(void) {
+    u16 *fb = gfx_colorbuf();
+    int w = gfx_width(), h = gfx_height();
+    u16 top = gLevel.sky_top, bot = gLevel.sky_bottom;
+    int tr = top >> 11, tg = (top >> 5) & 63, tb = top & 31, br = bot >> 11, bg = (bot >> 5) & 63, bb = bot & 31;
+    for (int y = 0; y < h; y++) {
+        int k = y * 256 / h;
+        u16 c = (u16)((((tr * (256 - k) + br * k) >> 8) << 11) | (((tg * (256 - k) + bg * k) >> 8) << 5) | ((tb * (256 - k) + bb * k) >> 8));
+        u32 c2 = ((u32)c << 16) | c;
+        u32 *row = (u32 *)(fb + y * w);
+        for (int x = 0; x < (w >> 1); x++) row[x] = c2;
+    }
+}
+
+static void draw_skeleton(const Player *p) {
+    const Level *L = &gLevel;
+    const Anim *a = &L->anims[p->anim < L->n_anims ? p->anim : 0];
+    int f = (p->anim_frame >> 4);
+    if (a->loop) f %= a->nframes; else if (f >= a->nframes) f = a->nframes - 1;
+    int np = MIN(a->nparts, L->n_parts);
+    const u8 *fr = a->raw + 8 + (u32)f * (2 + 6 * a->nparts);
+    s32 rooty = BES16(fr);
+    Mat34 world[MAX_PARTS], root, tmp;
+    mat_from_trs(&root, p->x >> 8, p->y >> 8, p->z >> 8, 0, p->face_yaw, 0, ONE14);
+    if (p->roll) {
+        Mat34 r; mat_from_trs(&r, 0, 80, 0, p->roll, 0, 0, ONE14);
+        Mat34 back; mat_identity(&back); back.m[1][3] = -80;
+        mat_mul(&tmp, &r, &back); mat_mul(&root, &root, &tmp);
+    }
+    for (int i = 0; i < np; i++) {
+        const Part *pt = &L->parts[i];
+        const u8 *rot = fr + 2 + i * 6;
+        Mat34 local;
+        s32 ty = pt->py + (pt->parent < 0 ? rooty : 0);
+        mat_from_trs(&local, pt->px, ty, pt->pz, BE16(rot), BE16(rot + 2), BE16(rot + 4), ONE14);
+        const Mat34 *par = pt->parent >= 0 && pt->parent < i ? &world[pt->parent] : &root;
+        mat_mul(&world[i], par, &local);
+        gfx_set_model(&world[i]);
+        gfx_run_dl(pt->dl);
+    }
+}
+
+static void draw_shadow(const Player *p) {
+    if (p->floor_y == INT32_MIN) return;
+    s32 sx, sy, d;
+    if (!gfx_project_point(p->x >> 8, (p->floor_y >> 8) + 2, p->z >> 8, &sx, &sy, &d)) return;
+    s32 r = (40 * gfx_height() * 2) / (d ? d : 1);
+    if (r < 2) r = 2;
+    if (r > 40) r = 40;
+    gfx_blend_rect(sx - r, sy - r / 3, r * 2, (r * 2) / 3 + 1, 0x0000);
+}
+
+static void draw_model(int idx, s32 x, s32 y, s32 z, u16 yaw, s32 scale) {
+    if (idx >= gLevel.n_models) return;
+    const Model *m = &gLevel.models[idx];
+    if (!gfx_sphere_visible(x, y, z, m->radius)) return;
+    if (m->billboard) gfx_set_model_billboard(x, y, z, scale);
+    else { Mat34 w; mat_from_trs(&w, x, y, z, 0, yaw, 0, scale); gfx_set_model(&w); }
+    gfx_run_dl(m->dl);
+}
+
+static void draw_hud(int show_fps, int fps10) {
+    char buf[40];
+    const Player *p = &gGame.p;
+    int s = gfx_width() >= 300 ? 2 : 1;
+    /* health pips */
+    for (int i = 0; i < 8; i++) gfx_fill_rect(4 + i * 5 * s, 4, 4 * s, 6 * s, i < p->health ? 0xF800 : 0x4208);
+    snprintf(buf, sizeof(buf), "COIN %d/%d", p->coins, gLevel.coins_total);
+    gfx_draw_text(4, 4 + 8 * s, buf, 0xFFE0, s);
+    snprintf(buf, sizeof(buf), "STAR %d  LIFE %d", p->stars, p->lives);
+    gfx_draw_text(4, 4 + 17 * s, buf, 0xFFFF, s);
+    if (show_fps) {
+        snprintf(buf, sizeof(buf), "%d.%d FPS", fps10 / 10, fps10 % 10);
+        gfx_draw_text(gfx_width() - gfx_text_width(buf, s) - 4, 4, buf, 0x07FF, s);
+    }
+    if (gGame.msg_timer > 0 || gGame.won) {
+        const char *m = gGame.won ? "STAR GET! YOU WIN" : gGame.msg;
+        int big = s + 1;
+        gfx_draw_text((gfx_width() - gfx_text_width(m, big)) / 2, gfx_height() / 3, m, 0xFFE0, big);
+    }
+    if (gGame.paused) gfx_draw_text((gfx_width() - gfx_text_width("PAUSED", s + 1)) / 2, gfx_height() / 2, "PAUSED", 0xFFFF, s + 1);
+}
+
+void game_render(int show_fps, int fps10) {
+    Game *g = &gGame;
+    Camera *c = &g->cam;
+    draw_sky();
+    gfx_clear_depth();
+    Mat34 view;
+    Vec3i eye = { c->x, c->y, c->z }, tgt = { c->fx, c->fy, c->fz };
+    mat_lookat(&view, eye, tgt);
+    gfx_set_view(&view);
+    Mat34 id; mat_identity(&id);
+    gfx_reset_state();
+    /* opaque level chunks */
+    for (int layer = 0; layer < 3; layer += 2) {
+        if (layer == 2) {
+            /* objects + player before translucent water */
+            draw_skeleton(&g->p);
+            for (int i = 0; i < gLevel.n_objs; i++) {
+                const Obj *o = &gLevel.objs[i];
+                if (!o->active) continue;
+                switch (o->type) {
+                    case OBJ_COIN: draw_model(0, o->x, o->y, o->z, o->yaw, ONE14); break;
+                    case OBJ_STAR: draw_model(1, o->x, o->y, o->z, o->yaw, ONE14 * 2); break;
+                    case OBJ_TREE: draw_model(2, o->x, o->y, o->z, 0, ONE14); break;
+                    case OBJ_BLOB: draw_model(3, o->x, o->y, o->z, o->yaw, o->state ? ONE14 / 2 : ONE14); break;
+                }
+            }
+            draw_shadow(&g->p);
+        }
+        gfx_set_model(&id);
+        for (int i = 0; i < gLevel.n_chunks; i++) {
+            const Chunk *ch = &gLevel.chunks[i];
+            if (ch->layer != layer) continue;
+            if (!gfx_sphere_visible(ch->x, ch->y, ch->z, ch->radius)) continue;
+            gfx_run_dl(ch->dl);
+        }
+    }
+    draw_hud(show_fps, fps10);
+    g->frame++;
+}

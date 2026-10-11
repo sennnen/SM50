@@ -1,0 +1,2 @@
+# crash test: F1 makes the add-in read an unmapped address
+5 press F1

@@ -1,0 +1,4 @@
+build/
+*.o
+*.ppm
+__pycache__/

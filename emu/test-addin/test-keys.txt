@@ -1,0 +1,13 @@
+# SM50 test add-in key script: <frame> down|up KEY  /  <frame> press KEY [hold]
+# frame = number of Bdisp_PutDisp_DD presents so far
+10 down RIGHT
+40 up RIGHT
+45 down DOWN
+65 up DOWN
+70 down SHIFT
+70 down LEFT
+90 up LEFT
+90 up SHIFT
+95 press UP 10
+120 press EXIT
+200 press EXE
