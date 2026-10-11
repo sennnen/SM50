@@ -1,0 +1,10 @@
+PASS unit tests (math, F3D formats/depth/culling/clipping, collision): 30/30 checks passed
+PASS content pack layout: 180236 bytes, entries ['INFO', 'LVLM', 'COLV', 'OBJS', 'SKEL', 'ANIM', 'MDLS']
+PASS gameplay: walking/running moves the player: z 1200 -> -1296
+PASS gameplay: jump leaves the ground and lands
+PASS gameplay: coin collection: coins=1
+PASS gameplay: enemy contact causes damage/knockback: health=6
+PASS gameplay: never falls through terrain: min y=4
+PASS g3a container checksums:   RESULT: valid
+PASS emulator: add-in boots and presents 100 frames: est. 17.7 fps (instruction-count estimate)
+PASS emulator: 3D scene rendered and changes with input: 170 colours in frame 70, 75676 pixels changed since frame 1

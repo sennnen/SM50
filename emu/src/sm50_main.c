@@ -134,7 +134,10 @@ void sm50_virtual_frame(void) {
   frame_done(false);
 }
 
+static void sm50_prof_write(void);
+static void sm50_prof_enable(const char *path);
 static void print_summary(FILE *f, int code, const char *reason) {
+  sm50_prof_write();
   double wall = wall_now();
   double emu_s = (double)sm50_cycles() / SM50_CPU_HZ;
   fprintf(f, "\n==== sm50emu summary ====\n");
@@ -228,6 +231,7 @@ static void usage(const char *argv0) {
     "  --present-ms X      add X ms per Bdisp_PutDisp_DD to the HW frame-time estimate\n"
     "  --heap-kb N         sys_malloc arena size in KB (default 256)\n"
     "  --log FILE          log file (debug prints, syscall warnings, summary)\n"
+    "  --profile FILE      write a per-address instruction histogram of the add-in code\n"
     "  --frame-stats FILE  CSV of instructions per presented frame\n"
     "  --trace-syscalls    log every syscall and key event\n"
     "  --quiet             do not echo log lines to stderr when --log is given\n",
@@ -240,7 +244,8 @@ int main(int argc, char **argv) {
   for (int i = 1; i < argc; i++) {
     const char *a = argv[i];
 #define NEXT() (i + 1 < argc ? argv[++i] : (usage(argv[0]), ""))
-    if (!strcmp(a, "--max-frames")) sm50_opt.max_frames = atol(NEXT());
+    if (!strcmp(a, "--profile")) { extern int sm50_prof_on; sm50_prof_enable(NEXT()); }
+    else if (!strcmp(a, "--max-frames")) sm50_opt.max_frames = atol(NEXT());
     else if (!strcmp(a, "--max-seconds")) sm50_opt.max_seconds = atof(NEXT());
     else if (!strcmp(a, "--max-wall")) sm50_opt.max_wall = atof(NEXT());
     else if (!strcmp(a, "--keys")) sm50_opt.keys_path = NEXT();
@@ -293,4 +298,31 @@ int main(int argc, char **argv) {
   atexit(at_exit_handler);
   startInterpreter(g3a);
   return 0;
+}
+
+
+/* ---- PC sampling profiler (--profile FILE): counts every instruction
+ * executed inside the add-in code window 0x00300000..0x00B00000. ---- */
+int sm50_prof_on;
+static unsigned int *sm50_prof_counts;
+static const char *sm50_prof_path;
+#define PROF_BASE 0x00300000u
+#define PROF_SPAN 0x00800000u
+void sm50_prof_sample(unsigned int pc) {
+  unsigned int off = pc - PROF_BASE;
+  if (off < PROF_SPAN) sm50_prof_counts[off >> 1]++;
+}
+static void sm50_prof_write(void) {
+  if (!sm50_prof_on || !sm50_prof_path) return;
+  FILE *f = fopen(sm50_prof_path, "w");
+  if (!f) return;
+  for (unsigned int i = 0; i < PROF_SPAN / 2; i++)
+    if (sm50_prof_counts[i]) fprintf(f, "%08x %u\n", PROF_BASE + i * 2, sm50_prof_counts[i]);
+  fclose(f);
+}
+
+static void sm50_prof_enable(const char *path) {
+  sm50_prof_counts = calloc(PROF_SPAN / 2, sizeof(unsigned int));
+  sm50_prof_path = path;
+  sm50_prof_on = sm50_prof_counts != NULL;
 }

@@ -257,12 +257,19 @@ void game_render(int show_fps, int fps10) {
             draw_shadow(&g->p);
         }
         gfx_set_model(&id);
+        /* visible chunks of this layer, nearest first (opaque) to maximise early z rejection */
+        int order[MAX_CHUNKS]; s32 key[MAX_CHUNKS]; int n = 0;
         for (int i = 0; i < gLevel.n_chunks; i++) {
             const Chunk *ch = &gLevel.chunks[i];
             if (ch->layer != layer) continue;
             if (!gfx_sphere_visible(ch->x, ch->y, ch->z, ch->radius)) continue;
-            gfx_run_dl(ch->dl);
+            s32 dx = (ch->x - c->x) >> 4, dy = (ch->y - c->y) >> 4, dz = (ch->z - c->z) >> 4;
+            s32 k = dx * dx + dy * dy + dz * dz;
+            int j = n++;
+            while (j > 0 && key[j - 1] > k) { key[j] = key[j - 1]; order[j] = order[j - 1]; j--; }
+            key[j] = k; order[j] = i;
         }
+        for (int i = 0; i < n; i++) gfx_run_dl(gLevel.chunks[order[i]].dl);
     }
     draw_hud(show_fps, fps10);
     g->frame++;

@@ -1,17 +1,19 @@
 diff --git a/src/interpreter.c b/src/interpreter.c
-index 32ad260..b0a4ce6 100644
+index 32ad260..29fcb37 100644
 --- a/src/interpreter.c
 +++ b/src/interpreter.c
-@@ -24,6 +24,8 @@
+@@ -24,6 +24,10 @@
  #include "hardware/debug/debug.h"
  #include "interrupts.h"
  
 +bool sm50_hle_hook(void);
++extern int sm50_prof_on;
++void sm50_prof_sample(unsigned int pc);
 +
  CpuState cpu = {0};
  
  void test(void);
-@@ -112,27 +114,9 @@ void runIterationsCPU(int interationsToRun) {
+@@ -112,28 +116,11 @@ void runIterationsCPU(int interationsToRun) {
      //   cpu.reg.PC = cpu.reg.PR;
      // }
  
@@ -40,8 +42,10 @@ index 32ad260..b0a4ce6 100644
 +    if ((cpu.reg.PC & 0xDFFFE000) == 0x80020000 && sm50_hle_hook()) {
 +      continue;
      }
++    if (sm50_prof_on) sm50_prof_sample(cpu.reg.PC);
  
      // TODO: Check alignment
+     u16 instr = readMemory2Quick(cpu.reg.PC);
 diff --git a/src/memory/memory.c b/src/memory/memory.c
 index d7d09da..8d54849 100644
 --- a/src/memory/memory.c

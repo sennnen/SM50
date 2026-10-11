@@ -281,48 +281,151 @@ static void resolve_material(void) {
 /* ------------------------------------------------------------ rasteriser */
 typedef struct { s32 x, y, q, uq, vq, r, g, b; } RVtx; /* screen-space vertex */
 
-#define SUBDIV_LOG 3
+#define SUBDIV_LOG 4
+
+static inline s64 recip34(s32 v) { /* 2^34 / v for v > 0 */
+    return v <= 16384 ? ((s64)gRecipTable[v] << 4) : (((s64)1 << 34) / v);
+}
+
+#define KEY GFX_TRANSPARENT
+static inline u16 modulate(u32 c, u32 k) {
+    u32 c32 = (c | (c << 16)) & 0x07E0F81F;
+    c32 = ((c32 * k) >> 5) & 0x07E0F81F;
+    return (u16)(c32 | (c32 >> 16));
+}
+
+/* textured span; shade k (0..32) is constant per 8-pixel sub-span */
+static void span_tex(u16 *cp, u16 *zp, int n, s32 q, s32 dq, s32 uq, s32 duq, s32 vq, s32 dvq, s32 sh, s32 dsh) {
+    const Material *m = &sMat;
+    const u16 *tx = m->tex;
+    const int tws = m->tw_log;
+    const u32 wm = (u32)m->tw - 1, hm = (u32)m->th - 1;
+    const int flags = m->flags;
+    const s32 uoff = m->uoff, voff = m->voff;
+    while (n > 0) {
+        int span = n > (1 << SUBDIV_LOG) ? (1 << SUBDIV_LOG) : n;
+        s32 qa = q >> 8, qb = (q + dq * span) >> 8;
+        qa = qa < 1 ? 1 : qa > 16384 ? 16384 : qa;
+        qb = qb < 1 ? 1 : qb > 16384 ? 16384 : qb;
+        s32 ua = (s32)(((s64)uq * gRecipTable[qa]) >> 30) - uoff;
+        s32 va = (s32)(((s64)vq * gRecipTable[qa]) >> 30) - voff;
+        uq += duq * span; vq += dvq * span;
+        s32 ub = (s32)(((s64)uq * gRecipTable[qb]) >> 30) - uoff;
+        s32 vb = (s32)(((s64)vq * gRecipTable[qb]) >> 30) - voff;
+        s32 du, dv;
+        if (span == (1 << SUBDIV_LOG)) { du = (ub - ua) >> SUBDIV_LOG; dv = (vb - va) >> SUBDIV_LOG; }
+        else { du = (ub - ua) / span; dv = (vb - va) / span; }
+        u32 k = 32;
+        if (flags & MF_SHADE) {
+            s32 s = sh + dsh * (span >> 1);
+            s = (s + (s >> 7)) >> 11;
+            k = s < 0 ? 0 : s > 32 ? 32 : (u32)s;
+            sh += dsh * span;
+        }
+        u32 uu = (u32)ua, vv = (u32)va;
+        n -= span;
+        if (!(flags & (MF_CLAMPS | MF_CLAMPT | MF_XLU | MF_ALPHA))) {
+            /* fast path: opaque wrapping texture */
+            if (k == 32) {
+                for (int i = 0; i < span; i++) {
+                    u16 z = (u16)(q >> 7);
+                    if (z > zp[i]) { zp[i] = z; cp[i] = tx[(((vv >> 5) & hm) << tws) | ((uu >> 5) & wm)]; }
+                    q += dq; uu += du; vv += dv;
+                }
+            } else {
+                for (int i = 0; i < span; i++) {
+                    u16 z = (u16)(q >> 7);
+                    if (z > zp[i]) { zp[i] = z; cp[i] = modulate(tx[(((vv >> 5) & hm) << tws) | ((uu >> 5) & wm)], k); }
+                    q += dq; uu += du; vv += dv;
+                }
+            }
+        } else {
+            int zw = !(flags & MF_NOZW);
+            for (int i = 0; i < span; i++) {
+                u16 z = (u16)(q >> 7);
+                if (z > zp[i]) {
+                    s32 tu = (s32)uu >> 5, tv = (s32)vv >> 5;
+                    if (flags & MF_CLAMPS) tu = tu < 0 ? 0 : tu > (s32)wm ? (s32)wm : tu; else tu &= wm;
+                    if (flags & MF_CLAMPT) tv = tv < 0 ? 0 : tv > (s32)hm ? (s32)hm : tv; else tv &= hm;
+                    u16 c = tx[(tv << tws) + tu];
+                    if (c != KEY || !(flags & MF_ALPHA)) {
+                        if (k != 32) c = modulate(c, k);
+                        if (flags & MF_XLU) c = (u16)(((c & 0xF7DE) + (cp[i] & 0xF7DE)) >> 1);
+                        cp[i] = c;
+                        if (zw) zp[i] = z;
+                    }
+                }
+                q += dq; uu += du; vv += dv;
+            }
+        }
+        cp += span; zp += span;
+    }
+}
+
+static void span_color(u16 *cp, u16 *zp, int n, s32 q, s32 dq, s32 r0, s32 dr, s32 g0, s32 dg, s32 b0, s32 db) {
+    const Material *m = &sMat;
+    int flags = m->flags;
+    if (!(flags & MF_SHADE)) {
+        u16 c = m->flat;
+        for (int i = 0; i < n; i++) {
+            u16 z = (u16)(q >> 7);
+            if (z > zp[i]) {
+                cp[i] = (flags & MF_XLU) ? (u16)(((c & 0xF7DE) + (cp[i] & 0xF7DE)) >> 1) : c;
+                if (!(flags & MF_NOZW)) zp[i] = z;
+            }
+            q += dq;
+        }
+        return;
+    }
+    u32 k = m->flat == 0xFFFF ? 32 : 0;
+    if (!k) { /* prim-tinted shade: fold the tint into the per-pixel colour (rare) */ }
+    for (int i = 0; i < n; i++) {
+        u16 z = (u16)(q >> 7);
+        if (z > zp[i]) {
+            u16 c = (u16)((r0 & 0xF800) | ((g0 >> 5) & 0x07E0) | ((b0 >> 11) & 0x1F));
+            if (!k) {
+                u16 f = m->flat;
+                c = (u16)((((((c >> 11) * (f >> 11)) >> 5)) << 11) | (((((c >> 5) & 63) * ((f >> 5) & 63)) >> 6) << 5) | (((c & 31) * (f & 31)) >> 5));
+            }
+            if (flags & MF_XLU) c = (u16)(((c & 0xF7DE) + (cp[i] & 0xF7DE)) >> 1);
+            cp[i] = c;
+            if (!(flags & MF_NOZW)) zp[i] = z;
+        }
+        q += dq; r0 += dr; g0 += dg; b0 += db;
+    }
+}
 
 static void raster_tri(const RVtx *a, const RVtx *b, const RVtx *c) {
-    const Material *m = &sMat;
-    /* sort by y */
     const RVtx *t;
     if (a->y > b->y) { t = a; a = b; b = t; }
     if (b->y > c->y) { t = b; b = c; c = t; }
     if (a->y > b->y) { t = a; a = b; b = t; }
     s32 y0 = a->y, y1 = b->y, y2 = c->y;
-    if (y2 - y0 <= 0) return;
-    int ytop = (y0 + 7) >> 4, ybot = (y2 + 7) >> 4; /* rows whose centre (row*16+8) lies in [y0, y2) */
+    s32 dy_ac = y2 - y0;
+    if (dy_ac <= 0) return;
+    int ytop = (y0 + 7) >> 4, ybot = (y2 + 7) >> 4;
     if (ytop < 0) ytop = 0;
     if (ybot > sH) ybot = sH;
     if (ytop >= ybot) return;
 
-    /* long edge a->c at y1 */
-    s32 dy_ac = y2 - y0;
-    s32 tq16 = (s32)(((s64)(y1 - y0) << 16) / dy_ac);
+    s64 inv_ac = recip34(dy_ac);
+    s32 tq16 = (s32)(((s64)(y1 - y0) * inv_ac) >> 18);
 #define LERP(f) (a->f + (s32)(((s64)(c->f - a->f) * tq16) >> 16))
-    s32 xl = LERP(x);
-    s32 width = xl - b->x; /* Q4; >0 means long edge on the right */
-    if (width == 0) return;
+    s32 width = LERP(x) - b->x;
     s32 aw = width < 0 ? -width : width;
     if (aw < 2) return;
-    s64 invw = ((s64)1 << 34) / aw; /* 2^34 / width(Q4) */
+    s64 invw = recip34(aw);
     if (width < 0) invw = -invw;
-    /* gradients per pixel: (A_l - A_b) / (width/16) = diff * 16 / width = diff * invw >> 30 */
 #define DX(f) ((s32)(((s64)(LERP(f) - b->f) * invw) >> 30))
-    s32 dq = DX(q), duq = 0, dvq = 0, dr = 0, dg = 0, db = 0;
-    int tex = m->flags & MF_TEX, shade = m->flags & MF_SHADE;
+    const int tex = sMat.flags & MF_TEX, shade = sMat.flags & MF_SHADE;
+    s32 dq = DX(q), duq = 0, dvq = 0, dr = 0, dg = 0, db = 0, dsh = 0;
     if (tex) { duq = DX(uq); dvq = DX(vq); }
-    if (shade) { dr = DX(r); dg = DX(g); db = DX(b); }
+    if (shade) { dr = DX(r); dg = DX(g); db = DX(b); dsh = (dr * 5 + dg * 9 + db * 2) >> 4; }
 #undef DX
 #undef LERP
-
-    /* Edges: we walk the left edge attributes and both x positions. */
-    const RVtx *lt, *lb; /* left edge current segment */
-    int long_right = width > 0;
-    /* x stepping in Q16 per scanline */
-    s32 inv_ac = (s32)(((s64)1 << 34) / dy_ac);
-    s32 dxdy_ac = (s32)(((s64)(c->x - a->x) * inv_ac) >> 18); /* Q16 x per scanline */
+    const int long_right = width > 0;
+    s32 dxdy_ac = (s32)(((s64)(c->x - a->x) * inv_ac) >> 18);
+    gGfxStats.tris_drawn++;
 
     for (int seg = 0; seg < 2; seg++) {
         const RVtx *s0 = seg == 0 ? a : b, *s1 = seg == 0 ? b : c;
@@ -331,23 +434,16 @@ static void raster_tri(const RVtx *a, const RVtx *b, const RVtx *c) {
         if (rs < ytop) rs = ytop;
         if (re > ybot) re = ybot;
         if (rs >= re || sy1 - sy0 <= 0) continue;
-        s32 inv_s = (s32)(((s64)1 << 34) / (sy1 - sy0));
+        s64 inv_s = recip34(sy1 - sy0);
         s32 dxdy_s = (s32)(((s64)(s1->x - s0->x) * inv_s) >> 18);
-        /* positions at the first row centre (row*16 + 8 in Q4) */
         s32 ycen = rs * 16 + 8;
         s32 xs = (s0->x << 12) + (s32)(((s64)dxdy_s * (ycen - sy0)) >> 4);
         s32 xa = (a->x << 12) + (s32)(((s64)dxdy_ac * (ycen - y0)) >> 4);
-        /* left edge is the short edge if long edge is on the right */
-        const RVtx *e0, *e1; s32 xleft, dxl, xright, dxr;
-        if (long_right) { e0 = s0; e1 = s1; xleft = xs; dxl = dxdy_s; xright = xa; dxr = dxdy_ac; }
-        else { e0 = a; e1 = c; xleft = xa; dxl = dxdy_ac; xright = xs; dxr = dxdy_s; }
-        lt = e0; lb = e1; (void)lb;
-        /* attributes on the left edge: A(x,y) plane evaluation from vertex e0 using
-         * gradient dA/dx and the edge: we compute dA/dy along the edge directly. */
-        s32 edy = e1->y - e0->y;
-        s32 inv_e = (s32)(((s64)1 << 34) / (edy > 0 ? edy : 1));
-#define EDY(f) ((s32)(((s64)(e1->f - e0->f) * inv_e) >> 30)) /* per scanline */
+        const RVtx *e0, *e1; s32 xleft, dxl, xright, dxr; s64 inv_e;
+        if (long_right) { e0 = s0; e1 = s1; xleft = xs; dxl = dxdy_s; xright = xa; dxr = dxdy_ac; inv_e = inv_s; }
+        else { e0 = a; e1 = c; xleft = xa; dxl = dxdy_ac; xright = xs; dxr = dxdy_s; inv_e = inv_ac; }
         s32 et16 = (s32)(((s64)(ycen - e0->y) * inv_e) >> 18);
+#define EDY(f) ((s32)(((s64)(e1->f - e0->f) * inv_e) >> 30))
 #define EAT(f) (e0->f + (s32)(((s64)(e1->f - e0->f) * et16) >> 16))
         s32 qL = EAT(q), dqL = EDY(q);
         s32 uL = 0, duL = 0, vL = 0, dvL = 0, rL = 0, drL = 0, gL = 0, dgL = 0, bL = 0, dbL = 0;
@@ -355,106 +451,35 @@ static void raster_tri(const RVtx *a, const RVtx *b, const RVtx *c) {
         if (shade) { rL = EAT(r); drL = EDY(r); gL = EAT(g); dgL = EDY(g); bL = EAT(b); dbL = EDY(b); }
 #undef EDY
 #undef EAT
-        /* the edge point at row centre has x = xleft (Q16); attributes at x are on the edge */
-        for (int y = rs; y < re; y++) {
+        u16 *crow = sColor + rs * sW, *zrow = sDepth + rs * sW;
+        for (int y = rs; y < re; y++, crow += sW, zrow += sW) {
             int x0 = (xleft + 0x7FFF) >> 16, x1 = (xright + 0x7FFF) >> 16;
             if (x0 < 0) x0 = 0;
             if (x1 > sW) x1 = sW;
             if (x0 < x1) {
-                /* prestep from the exact left edge to pixel centre x0+0.5 */
-                s32 pre = ((x0 << 16) + 0x8000) - xleft; /* Q16 pixels */
+                s32 pre = ((x0 << 16) + 0x8000) - xleft;
                 s32 q = qL + (s32)(((s64)dq * pre) >> 16);
-                u16 *cp = sColor + y * sW + x0, *zp = sDepth + y * sW + x0;
                 int n = x1 - x0;
                 gGfxStats.pixels += n;
                 if (tex) {
-                    s32 uq = uL + (s32)(((s64)duq * pre) >> 16);
-                    s32 vq = vL + (s32)(((s64)dvq * pre) >> 16);
-                    s32 rr = 0, dr2 = 0;
+                    s32 sh = 0;
                     if (shade) {
-                        /* textured+shade: modulate by intensity (green-weighted luma) */
                         s32 r0 = rL + (s32)(((s64)dr * pre) >> 16), g0 = gL + (s32)(((s64)dg * pre) >> 16), b0 = bL + (s32)(((s64)db * pre) >> 16);
-                        rr = (r0 * 5 + g0 * 9 + b0 * 2) >> 4; dr2 = (dr * 5 + dg * 9 + db * 2) >> 4;
+                        sh = (r0 * 5 + g0 * 9 + b0 * 2) >> 4;
                     }
-                    const u16 *tx = m->tex; int tws = m->tw_log, wm = m->tw - 1, hm = m->th - 1;
-                    int clamp = m->flags & (MF_CLAMPS | MF_CLAMPT), alpha = m->flags & MF_ALPHA, xlu = m->flags & MF_XLU;
-                    int zw = !(m->flags & MF_NOZW);
-                    s32 uoff = m->uoff, voff = m->voff;
-                    while (n > 0) {
-                        int span = n > (1 << SUBDIV_LOG) ? (1 << SUBDIV_LOG) : n;
-                        s32 qa = q >> 8; if (qa < 1) qa = 1; if (qa > 16384) qa = 16384;
-                        s32 qb = (q + dq * span) >> 8; if (qb < 1) qb = 1; if (qb > 16384) qb = 16384;
-                        s32 ua = (s32)(((s64)uq * gRecipTable[qa]) >> 30) - uoff;
-                        s32 va = (s32)(((s64)vq * gRecipTable[qa]) >> 30) - voff;
-                        s32 ub = (s32)(((s64)(uq + duq * span) * gRecipTable[qb]) >> 30) - uoff;
-                        s32 vb = (s32)(((s64)(vq + dvq * span) * gRecipTable[qb]) >> 30) - voff;
-                        s32 du, dv;
-                        if (span == (1 << SUBDIV_LOG)) { du = (ub - ua) >> SUBDIV_LOG; dv = (vb - va) >> SUBDIV_LOG; }
-                        else { du = (ub - ua) / span; dv = (vb - va) / span; }
-                        s32 uu = ua << 0, vv = va;
-                        for (int i = 0; i < span; i++) {
-                            u16 z = (u16)(q >> 7);
-                            if (z > *zp) {
-                                int tu = uu >> 5, tv = vv >> 5;
-                                if (clamp) {
-                                    if (m->flags & MF_CLAMPS) tu = tu < 0 ? 0 : tu > wm ? wm : tu; else tu &= wm;
-                                    if (m->flags & MF_CLAMPT) tv = tv < 0 ? 0 : tv > hm ? hm : tv; else tv &= hm;
-                                } else { tu &= wm; tv &= hm; }
-                                u16 c = tx[(tv << tws) + tu];
-                                if (!(alpha && c == GFX_TRANSPARENT)) {
-                                    if (shade) {
-                                        s32 k = (rr + (rr >> 7)) >> 11; if (k > 32) k = 32; if (k < 0) k = 0;
-                                        u32 c32 = ((u32)c | ((u32)c << 16)) & 0x07E0F81F;
-                                        c32 = ((c32 * (u32)k) >> 5) & 0x07E0F81F;
-                                        c = (u16)(c32 | (c32 >> 16));
-                                    }
-                                    if (xlu) c = (u16)((((c & 0xF7DE) + (*cp & 0xF7DE)) >> 1));
-                                    *cp = c;
-                                    if (zw) *zp = z;
-                                }
-                            }
-                            cp++; zp++; q += dq; uu += du; vv += dv; rr += dr2;
-                        }
-                        uq += duq * span; vq += dvq * span; n -= span;
-                    }
+                    span_tex(crow + x0, zrow + x0, n, q, dq, uL + (s32)(((s64)duq * pre) >> 16), duq,
+                             vL + (s32)(((s64)dvq * pre) >> 16), dvq, sh, dsh);
                 } else {
-                    int xlu = m->flags & MF_XLU, zw = !(m->flags & MF_NOZW);
-                    if (shade) {
-                        s32 r0 = rL + (s32)(((s64)dr * pre) >> 16), g0 = gL + (s32)(((s64)dg * pre) >> 16), b0 = bL + (s32)(((s64)db * pre) >> 16);
-                        u16 flat = m->flat;
-                        int fr = (flat >> 11) & 31, fg = (flat >> 5) & 63, fb = flat & 31; /* prim/env multiplier */
-                        while (n--) {
-                            u16 z = (u16)(q >> 7);
-                            if (z > *zp) {
-                                int R = r0 >> 8, G = g0 >> 8, B = b0 >> 8;
-                                R = CLAMP(R, 0, 255); G = CLAMP(G, 0, 255); B = CLAMP(B, 0, 255);
-                                u16 c = (u16)((((R * fr) >> 8) << 11) | (((G * fg) >> 8) << 5) | ((B * fb) >> 8));
-                                if (xlu) c = (u16)((((c & 0xF7DE) + (*cp & 0xF7DE)) >> 1));
-                                *cp = c; if (zw) *zp = z;
-                            }
-                            cp++; zp++; q += dq; r0 += dr; g0 += dg; b0 += db;
-                        }
-                    } else {
-                        u16 c = m->flat;
-                        while (n--) {
-                            u16 z = (u16)(q >> 7);
-                            if (z > *zp) {
-                                *cp = xlu ? (u16)((((c & 0xF7DE) + (*cp & 0xF7DE)) >> 1)) : c;
-                                if (zw) *zp = z;
-                            }
-                            cp++; zp++; q += dq;
-                        }
-                    }
+                    s32 r0 = 0, g0 = 0, b0 = 0;
+                    if (shade) { r0 = rL + (s32)(((s64)dr * pre) >> 16); g0 = gL + (s32)(((s64)dg * pre) >> 16); b0 = bL + (s32)(((s64)db * pre) >> 16); }
+                    span_color(crow + x0, zrow + x0, n, q, dq, r0, dr, g0, dg, b0, db);
                 }
             }
-            xleft += dxl; xright += dxr;
-            qL += dqL;
+            xleft += dxl; xright += dxr; qL += dqL;
             if (tex) { uL += duL; vL += dvL; }
             if (shade) { rL += drL; gL += dgL; bL += dbL; }
         }
     }
-    (void)lt;
-    gGfxStats.tris_drawn++;
 }
 
 /* Project a view-space vertex into an RVtx. */
