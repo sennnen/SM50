@@ -24,8 +24,9 @@ initialize:
     mov.l r1, @r2
     bra 3b
     add #4, r2
-4:  mov #1, r4
+4:  mov #0, r4
     mov #1, r5
+    mov #1, r6
     mov.l L_syscall, r2
     jsr @r2
     mov #0x29, r0           /* GlibAddinAplExecutionCheck(0, 1, 1) */
