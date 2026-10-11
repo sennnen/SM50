@@ -8,5 +8,5 @@ PASS gameplay: never falls through terrain: min y=4
 PASS gameplay: autopilot climbs the tower stairs and collects the star: final pos (1903,1213,-1554) stars=1 coins=8
 PASS gameplay: autopilot crosses the floating platforms and collects star 2: final pos (762,818,-1361) stars=1
 PASS g3a container checksums:   RESULT: valid
-PASS emulator: add-in boots and presents 100 frames: est. 17.4 fps (instruction-count estimate)
-PASS emulator: 3D scene rendered and changes with input: 168 colours in frame 70, 88676 pixels changed since frame 1
+PASS emulator: add-in boots and presents 100 frames: est. 18.1 fps (instruction-count estimate)
+PASS emulator: 3D scene rendered and changes with input: 159 colours in frame 70, 88672 pixels changed since frame 1

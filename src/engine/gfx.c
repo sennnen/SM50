@@ -68,6 +68,7 @@ typedef struct {
     s32 u, v;         /* Q5 texels */
     s32 r, g, b;      /* 0..255 */
     s32 sx, sy, q;    /* screen Q4, q = 2^28 / vz (Q8 of 2^20/vz) */
+    s32 uq, vq;       /* u*q, v*q precomputed for the rasteriser */
     u8 clip;          /* 1 = behind near plane */
 } XVtx;
 #define VTX_MAX 32
@@ -503,8 +504,7 @@ static void project(RVtx *o, s32 vx, s32 vy, s32 vz, s32 u, s32 v, s32 r, s32 g,
 
 static void xv_to_r(RVtx *o, const XVtx *v) {
     o->x = v->sx; o->y = v->sy; o->q = v->q;
-    o->uq = (s32)(((s64)v->u * v->q) >> 8);
-    o->vq = (s32)(((s64)v->v * v->q) >> 8);
+    o->uq = v->uq; o->vq = v->vq;
     o->r = v->r << 8; o->g = v->g << 8; o->b = v->b << 8;
 }
 
@@ -662,10 +662,12 @@ static void load_vertices(const u8 *src, int n, int v0) {
         }
         o->clip = o->vz < sNear;
         if (!o->clip) {
-            s32 inv = (s32)((1 << 28) / o->vz);
+            s32 inv = o->vz <= 16384 ? (s32)(gRecipTable[o->vz] >> 2) : (s32)((1 << 28) / o->vz);
             o->q = inv;
-            o->sx = sCenterX + (s32)(((s64)o->vx * sFocalX * inv) >> 28);
-            o->sy = sCenterY - (s32)(((s64)o->vy * sFocalY * inv) >> 28);
+            o->sx = sCenterX + (s32)(((s64)(o->vx * sFocalX) * inv) >> 28);
+            o->sy = sCenterY - (s32)(((s64)(o->vy * sFocalY) * inv) >> 28);
+            o->uq = (s32)(((s64)o->u * inv) >> 8);
+            o->vq = (s32)(((s64)o->v * inv) >> 8);
         }
         gGfxStats.vtx_xform++;
     }

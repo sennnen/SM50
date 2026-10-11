@@ -58,7 +58,7 @@ Full suite: `make test` gives 12/12 groups passing (`docs/test-results/results.t
 
 ## Performance
 
-- The emulator estimates about **17-18 fps** at 198x112 and about **24 fps** in the F4 low-res mode. The estimate is instruction counts at 117.96 MHz, assuming one cycle per instruction.
+- The emulator estimates about **18 fps** at 198x112 and about **24 fps** in the F4 low-res mode. The estimate is instruction counts at 117.96 MHz, assuming one cycle per instruction.
 - Real hardware will be slower because of memory wait states and the LCD transfer. I would expect roughly 8-12 fps; please check the F6 counter.
 - Rendering runs at 198x112 and is upscaled 2x. Game logic runs at a fixed 30 Hz, with up to 2 logic steps per rendered frame.
 - **Profile (SH4):**
