@@ -66,6 +66,10 @@ if os.path.exists(os.path.join(ROOT, "tests/scripts/star_route.txt")):
     record("gameplay: autopilot climbs the tower stairs and collects the star", rows[-1]["stars"] >= 1,
            f"final pos ({rows[-1]['x']},{rows[-1]['y']},{rows[-1]['z']}) stars={rows[-1]['stars']} coins={rows[-1]['coins']}")
 
+    r, rows = host("tests/scripts/star_route.txt", 400, ["--route", "tests/scripts/star2_route.wp", "--shot-at", "200"])
+    record("gameplay: autopilot crosses the floating platforms and collects star 2", rows[-1]["stars"] >= 1,
+           f"final pos ({rows[-1]['x']},{rows[-1]['y']},{rows[-1]['z']}) stars={rows[-1]['stars']}")
+
 # 5. g3a validation
 g3a = os.path.join(ROOT, "build/calc/SM50.g3a")
 if os.path.exists(g3a):

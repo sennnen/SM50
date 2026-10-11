@@ -18,6 +18,8 @@ int game_init(const void *pack, u32 size, u8 *work, u32 work_size) {
     c->yaw = (u16)(gLevel.spawn_yaw);
     c->pitch = 0x0A00; c->dist = c->target_dist = 900;
     c->fx = p->x >> 8; c->fy = (p->y >> 8) + 100; c->fz = p->z >> 8;
+    gGame.title = 1;
+    for (int i = 0; i < gLevel.n_objs; i++) if (gLevel.objs[i].type == OBJ_STAR) gGame.stars_total++;
     return 0;
 }
 
@@ -124,8 +126,10 @@ static void objects_tick(Player *p) {
                 o->yaw = (u16)(o->yaw + 0x0600);
                 if (dist2(px, py + 60, pz, o->x, o->y, o->z) < 140 * 140 && !gGame.won) {
                     o->active = 0; p->stars++;
-                    gGame.won = 1; gGame.win_timer = 0;
-                    p->action = ACT_WIN; p->action_timer = 0;
+                    if (p->stars >= gGame.stars_total) {
+                        gGame.won = 1; gGame.win_timer = 0;
+                        p->action = ACT_WIN; p->action_timer = 0;
+                    }
                     show_msg("STAR GET!");
                 }
                 break;
@@ -177,6 +181,13 @@ void game_tick(u16 buttons) {
     g->pressed = buttons & ~g->prev_buttons;
     g->prev_buttons = buttons;
     g->buttons = buttons;
+    if (g->title) {
+        /* title screen: slow orbit around the spawn point until jump is pressed */
+        g->cam.yaw = (u16)(g->cam.yaw + 0x0060);
+        camera_tick(&g->cam, &g->p, 0, 0);
+        if (g->pressed & BTN_JUMP) { g->title = 0; g->prev_buttons |= BTN_JUMP; }
+        return;
+    }
     if (g->pressed & BTN_PAUSE) g->paused = !g->paused;
     if (g->paused) return;
     g->ticks++;
@@ -249,22 +260,38 @@ static void draw_model(int idx, s32 x, s32 y, s32 z, u16 yaw, s32 scale) {
     gfx_run_dl(m->dl);
 }
 
+static void draw_title(void) {
+    int w = gfx_width(), s = w >= 300 ? 2 : 1;
+    int big = w >= 180 ? 3 : 2;
+    gfx_blend_rect(0, 0, w, gfx_height(), 0x0000);
+    gfx_draw_text((w - gfx_text_width("SM50", big * s)) / 2, 6 * s, "SM50", 0xFFE0, big * s);
+    gfx_draw_text((w - gfx_text_width(gLevel.name, s)) / 2, 6 * s + 24 * s, gLevel.name, 0x07FF, s);
+    static const char *lines[] = { "ARROWS  MOVE", "SHIFT   JUMP x3", "ALPHA   POUND", "F1 F2   CAMERA", "F4 SPEED F6 FPS" };
+    int y = 6 * s + 36 * s;
+    if (gfx_height() < 100) y -= 6;
+    for (unsigned i = 0; i < sizeof lines / sizeof lines[0]; i++, y += 9 * s)
+        if (y + 8 * s < gfx_height() - 10 * s) gfx_draw_text((w - gfx_text_width(lines[i], s)) / 2, y, lines[i], 0xFFFF, s);
+    if ((gGame.frame / 15) & 1)
+        gfx_draw_text((w - gfx_text_width("PRESS SHIFT", s)) / 2, gfx_height() - 10 * s, "PRESS SHIFT", 0xFFE0, s);
+}
+
 static void draw_hud(int show_fps, int fps10) {
     char buf[40];
+    if (gGame.title) { draw_title(); return; }
     const Player *p = &gGame.p;
     int s = gfx_width() >= 300 ? 2 : 1;
     /* health pips */
     for (int i = 0; i < 8; i++) gfx_fill_rect(4 + i * 5 * s, 4, 4 * s, 6 * s, i < p->health ? 0xF800 : 0x4208);
     snprintf(buf, sizeof(buf), "COIN %d/%d", p->coins, gLevel.coins_total);
     gfx_draw_text(4, 4 + 8 * s, buf, 0xFFE0, s);
-    snprintf(buf, sizeof(buf), "STAR %d  LIFE %d", p->stars, p->lives);
+    snprintf(buf, sizeof(buf), "STAR %d/%d LIFE %d", p->stars, gGame.stars_total, p->lives);
     gfx_draw_text(4, 4 + 17 * s, buf, 0xFFFF, s);
     if (show_fps) {
         snprintf(buf, sizeof(buf), "%d.%d FPS", fps10 / 10, fps10 % 10);
         gfx_draw_text(gfx_width() - gfx_text_width(buf, s) - 4, 4, buf, 0x07FF, s);
     }
     if (gGame.msg_timer > 0 || gGame.won) {
-        const char *m = gGame.won ? "STAR GET! YOU WIN" : gGame.msg;
+        const char *m = gGame.won ? "ALL STARS! YOU WIN" : gGame.msg;
         int big = s + 1;
         while (big > 1 && gfx_text_width(m, big) > gfx_width() - 4) big--;
         gfx_draw_text((gfx_width() - gfx_text_width(m, big)) / 2, gfx_height() / 3, m, 0xFFE0, big);

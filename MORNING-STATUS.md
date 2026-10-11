@@ -50,11 +50,11 @@ On the calculator, open MENU and choose SM50.
 | Z-buffer ordering, back-face culling, near-plane and 2D guard-band clipping | unit tests |
 | Collision: floors, ceilings, wall push-out (spatial grid) | unit tests |
 | Gameplay: run, jump/land, coins, enemy damage and knockback, no falling through the terrain | `tests/run_tests.py`, scripted runs |
-| Level completable: a waypoint autopilot climbs the spiral stairs, jumps the parapet and collects the star | `tests/scripts/star_route.wp`, `docs/screenshots/host_tower_climb_grid.png` |
+| Level completable: waypoint autopilots climb the spiral stairs to star 1 and cross the floating platforms to star 2 | `tests/scripts/star_route.wp`, `docs/screenshots/host_tower_climb_grid.png` |
 | Occlusion-aware camera (segment test against collision; swings to a clear yaw) | clear line of sight in 698/700 frames of the climb |
 | macOS installer logic (against a simulated volume) | run here with `/Volumes` redirected |
 
-Full suite: `make test` gives 11/11 groups passing (`docs/test-results/results.txt`).
+Full suite: `make test` gives 12/12 groups passing (`docs/test-results/results.txt`).
 
 ## Performance
 

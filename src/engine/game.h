@@ -54,7 +54,7 @@ typedef struct {
     Camera cam;
     u32 frame, ticks;
     u16 buttons, pressed, prev_buttons;
-    int paused, won, win_timer;
+    int paused, won, win_timer, title, stars_total;
     char msg[32]; int msg_timer;
     u32 perf_logic_us, perf_render_us;
 } Game;

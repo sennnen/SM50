@@ -315,6 +315,8 @@ objects = []
 SPAWN = (0, height(0, 1200) + 10, 1200, 0x8000)
 objects.append((OBJ_SPAWN, *SPAWN[:3], SPAWN[3], 0))
 objects.append((OBJ_STAR, TX, top + 120, TZ, 0, 0))
+# star 2: above the last floating platform
+objects.append((OBJ_STAR, int(PLATS[-1][0]), int(PLATS[-1][1] + 130), int(PLATS[-1][2]), 0, 1))
 # coins: ring around spawn, line up the ramp, on steps, on platforms
 for k in range(8):
     a = k / 8 * 2 * math.pi

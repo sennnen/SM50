@@ -28,7 +28,7 @@ static u16 parse_buttons(char *s) {
 }
 
 /* waypoint autopilot (tests): "x z [jump]" per line */
-static struct { s32 x, z; int jump; } sRoute[256];
+static struct { s32 x, z; int jump, jdist; } sRoute[256];
 static int sRouteLen, sRouteIdx, sJumpHold;
 
 static void load_route(const char *path) {
@@ -39,7 +39,8 @@ static void load_route(const char *path) {
         int x, z; char j[16] = "";
         if (line[0] == '#') continue;
         if (sscanf(line, "%d %d %15s", &x, &z, j) >= 2) {
-            sRoute[sRouteLen].x = x; sRoute[sRouteLen].z = z; sRoute[sRouteLen].jump = j[0] == 'j'; sRouteLen++;
+            sRoute[sRouteLen].x = x; sRoute[sRouteLen].z = z; sRoute[sRouteLen].jump = j[0] == 'j';
+            sRoute[sRouteLen].jdist = j[0] == 'j' && j[1] ? atoi(j + 1) : 260; sRouteLen++;
         }
     }
     fclose(f);
@@ -52,7 +53,7 @@ static u16 autopilot(void) {
     s32 d = (s32)isqrt64((u64)((s64)dx * dx + (s64)dz * dz));
     u16 b = 0;
     if (sJumpHold > 0) { sJumpHold--; b |= BTN_JUMP; }
-    if (sRoute[sRouteIdx].jump && d < 260 && sJumpHold == 0 && p->on_ground) { sJumpHold = 10; b |= BTN_JUMP; }
+    if (sRoute[sRouteIdx].jump && d < sRoute[sRouteIdx].jdist && sJumpHold == 0 && p->on_ground && p->action == ACT_WALK && p->chain_timer == 0) { sJumpHold = 10; b |= BTN_JUMP; }
     if (d < 60) { sRouteIdx++; return b; }
     u16 want = fatan2(dx, dz);
     s16 rel = (s16)(want - gGame.cam.yaw);
@@ -93,7 +94,7 @@ static void write_ppm(const char *path, int w, int h, int scale) {
 
 int main(int argc, char **argv) {
     const char *pack_path = "content/sm50.pack", *outdir = ".", *keys = NULL, *log_path = NULL;
-    int frames = 120, shot_every = 0, w = 198, h = 112, scale = 2;
+    int frames = 120, shot_every = 0, w = 198, h = 112, scale = 2, show_title = 0;
     int shots[64], nshots = 0;
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--pack") && i + 1 < argc) pack_path = argv[++i];
@@ -102,6 +103,7 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "--outdir") && i + 1 < argc) outdir = argv[++i];
         else if (!strcmp(argv[i], "--log") && i + 1 < argc) log_path = argv[++i];
         else if (!strcmp(argv[i], "--route") && i + 1 < argc) load_route(argv[++i]);
+        else if (!strcmp(argv[i], "--title")) show_title = 1;
         else if (!strcmp(argv[i], "--shot-every") && i + 1 < argc) shot_every = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--shot-at") && i + 1 < argc) {
             for (char *t = strtok(argv[++i], ","); t && nshots < 64; t = strtok(NULL, ",")) shots[nshots++] = atoi(t);
@@ -120,6 +122,7 @@ int main(int argc, char **argv) {
     gfx_set_perspective(50, 64, 16000);
     int r = game_init(pack, (u32)psize, sColWork, sizeof sColWork);
     if (r) { fprintf(stderr, "game_init failed: %d\n", r); return 1; }
+    gGame.title = show_title;
     printf("level '%s': %d chunks, %u col tris, %d objects, %d parts, %d anims\n", gLevel.name, gLevel.n_chunks,
            col_tri_count(), gLevel.n_objs, gLevel.n_parts, gLevel.n_anims);
     FILE *lf = log_path ? fopen(log_path, "w") : NULL;
