@@ -85,6 +85,11 @@ void gfx_init(u16 *colorbuf, u16 *zbuf, int width, int height, u8 *texcache, u32
     gfx_reset_state();
 }
 
+void gfx_resize(int width, int height) {
+    sW = width; sH = height;
+    sCenterX = (width * 16) / 2; sCenterY = (height * 16) / 2;
+}
+
 int gfx_width(void) { return sW; }
 int gfx_height(void) { return sH; }
 u16 *gfx_colorbuf(void) { return sColor; }

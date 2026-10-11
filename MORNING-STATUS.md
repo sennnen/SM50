@@ -34,6 +34,7 @@ On the calculator, open MENU and choose SM50.
 - **Jump:** SHIFT or EXE. Jumps chain into a double and then a triple jump; press jump next to a wall in mid-air for a wall kick.
 - **Ground pound:** ALPHA, in the air
 - **Camera:** F1/F2 rotate, F3 zoom
+- **Speed:** F4 switches to a faster 132x74 mode (3x upscale) if 198x112 is too slow on the real calculator
 - **Other:** F6 toggles the FPS counter, EXIT pauses, MENU returns to the OS
 
 ## Verified here (with evidence in `docs/`)
@@ -49,13 +50,15 @@ On the calculator, open MENU and choose SM50.
 | Z-buffer ordering, back-face culling, near-plane and 2D guard-band clipping | unit tests |
 | Collision: floors, ceilings, wall push-out (spatial grid) | unit tests |
 | Gameplay: run, jump/land, coins, enemy damage and knockback, no falling through the terrain | `tests/run_tests.py`, scripted runs |
+| Level completable: a waypoint autopilot climbs the spiral stairs, jumps the parapet and collects the star | `tests/scripts/star_route.wp`, `docs/screenshots/host_tower_climb_grid.png` |
+| Occlusion-aware camera (segment test against collision; swings to a clear yaw) | clear line of sight in 698/700 frames of the climb |
 | macOS installer logic (against a simulated volume) | run here with `/Volumes` redirected |
 
-Full suite: `make test` gives 10/10 groups passing (`docs/test-results/results.txt`).
+Full suite: `make test` gives 11/11 groups passing (`docs/test-results/results.txt`).
 
 ## Performance
 
-- The emulator estimates about **17-18 fps**. The estimate is instruction counts at 117.96 MHz, assuming one cycle per instruction.
+- The emulator estimates about **17-18 fps** at 198x112 and about **24 fps** in the F4 low-res mode. The estimate is instruction counts at 117.96 MHz, assuming one cycle per instruction.
 - Real hardware will be slower because of memory wait states and the LCD transfer. I would expect roughly 8-12 fps; please check the F6 counter.
 - Rendering runs at 198x112 and is upscaled 2x. Game logic runs at a fixed 30 Hz, with up to 2 logic steps per rendered frame.
 - **Profile (SH4):**

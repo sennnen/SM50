@@ -75,5 +75,5 @@ fi
 echo
 echo "On the calculator: wait for the 'Updating Add-In' screen to finish, press [MENU],"
 echo "then choose the SM50 icon. Controls: arrows move, SHIFT/EXE jump, ALPHA ground-pound,"
-echo "F1/F2 rotate camera, F3 zoom, F6 FPS counter, EXIT pause, MENU leave."
+echo "F1/F2 rotate camera, F3 zoom, F4 low-res (faster) mode, F6 FPS counter, EXIT pause, MENU leave."
 read -r -p "Press Return to close..." _ || true

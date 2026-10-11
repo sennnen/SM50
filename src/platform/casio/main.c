@@ -51,6 +51,7 @@ static int keydown(int code) {
 #define K_F1 79
 #define K_F2 69
 #define K_F3 59
+#define K_F4 49
 #define K_F6 29
 #define K_EXIT 47
 #define K_MENU 48
@@ -72,7 +73,32 @@ static u16 read_buttons(void) {
     return b;
 }
 
+static int sRes = 0; /* 0: 198x112 upscaled 2x, 1: 132x74 upscaled 3x */
+
+static void blit3x(void) {
+    u16 *vram = (u16 *)GetVRAMAddress();
+    const int w = 132, h = 74;
+    const u16 *src = sFb;
+    for (int y = 0; y < h; y++) {
+        u16 *r0 = vram + (y * 3 + 1) * LCD_W;
+        for (int x = 0; x < w; x++) {
+            u16 c = *src++;
+            r0[x * 3] = r0[x * 3 + 1] = r0[x * 3 + 2] = c;
+        }
+        memcpy(r0 + LCD_W, r0, LCD_W * 2);
+        memcpy(r0 + LCD_W * 2, r0, LCD_W * 2);
+    }
+}
+
+static void set_res(int r) {
+    sRes = r;
+    if (r) { gfx_resize(132, 74); memset(GetVRAMAddress(), 0, LCD_W * LCD_H * 2); }
+    else gfx_resize(RW, RH);
+    gfx_set_perspective(50, 64, 16000);
+}
+
 static void blit2x(void) {
+    if (sRes) { blit3x(); return; }
     u32 *vram = (u32 *)GetVRAMAddress();
     const u16 *src = sFb;
     for (int y = 0; y < RH; y++) {
@@ -119,7 +145,13 @@ int main(void) {
             EnableStatusArea(3);
             last = RTC_GetTicks(); acc = 0;
         }
-        if (keydown(K_F6)) show_fps = !show_fps;
+        {
+            static int f6, f4;
+            int k6 = keydown(K_F6), k4 = keydown(K_F4);
+            if (k6 && !f6) show_fps = !show_fps;
+            if (k4 && !f4) set_res(!sRes);
+            f6 = k6; f4 = k4;
+        }
         int now = RTC_GetTicks();
         int dt = now - last; last = now;
         if (dt < 0 || dt > 32) dt = 32;

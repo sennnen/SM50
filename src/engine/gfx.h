@@ -110,6 +110,8 @@ void gfx_reset_state(void);
 int gfx_project_point(s32 x, s32 y, s32 z, s32 *sx, s32 *sy, s32 *depth);
 /* Sphere visibility test in world coordinates. */
 int gfx_sphere_visible(s32 x, s32 y, s32 z, s32 radius);
+/* Change the render size (buffers must be large enough); call gfx_set_perspective after. */
+void gfx_resize(int width, int height);
 int gfx_width(void);
 int gfx_height(void);
 u16 *gfx_colorbuf(void);
