@@ -11,11 +11,15 @@
 #include "engine/surface_load.h"
 #include "surface_terrains.h"
 #include "audio/external.h"
+
+#define SM50_NATIVE_OBJECT_POOL_CAPACITY 64
 #include "game/camera.h"
 #include "game/interaction.h"
 #include "game/memory.h"
 #include "game/sound_init.h"
 #include "game/mario_actions_object.h"
+#include "game/object_list_processor.h"
+#include "game/spawn_object.h"
 #include "game/level_update.h"
 #include "game/save_file.h"
 #include "game/memory.h"
@@ -45,6 +49,8 @@ extern u32 set_mario_action(struct MarioState *m, u32 action, u32 actionArg);
 extern f32 find_floor(f32 x, f32 y, f32 z, struct Surface **pfloor);
 extern s32 perform_ground_step(struct MarioState *m);
 extern void *sys_malloc(u32 size);
+extern struct Object *try_allocate_object(struct ObjectNode *destList,
+                                          struct ObjectNode *freeList);
 extern volatile s32 native_sm64_canonical_pos_x_q8;
 extern volatile s32 native_sm64_canonical_pos_y_q8;
 extern volatile s32 native_sm64_canonical_pos_z_q8;
@@ -53,8 +59,8 @@ extern volatile s32 native_sm64_canonical_anim_index;
 
 SpatialPartitionCell gStaticSurfacePartition[NUM_CELLS][NUM_CELLS];
 SpatialPartitionCell gDynamicSurfacePartition[NUM_CELLS][NUM_CELLS];
-s32 gFindFloorIncludeSurfaceIntangible;
-s32 gCheckingSurfaceCollisionsForCamera;
+s16 gFindFloorIncludeSurfaceIntangible;
+s16 gCheckingSurfaceCollisionsForCamera;
 s32 gNumFindFloorMisses;
 s8 gShowDebugText;
 u32 gGlobalTimer;
@@ -66,9 +72,14 @@ s16 gCameraMovementFlags;
 struct MarioState *gMarioState;
 struct Object *gMarioObject;
 struct Object *gCurrentObject;
+struct Object gObjectPool[SM50_NATIVE_OBJECT_POOL_CAPACITY];
+struct ObjectNode gObjectListArray[16];
+struct ObjectNode *gObjectLists;
+struct ObjectNode gFreeObjectList;
+struct GraphNode gObjParentGraphNode;
 struct Area *gCurrentArea;
 s16 gCurrAreaIndex;
-struct NativeNumTimesCalled { s16 floor, ceil, wall; } gNumCalls;
+struct NumTimesCalled gNumCalls;
 Vec3f gVec3fZero = { 0.0f, 0.0f, 0.0f };
 
 void play_sound(s32 sound, f32 *pos) { (void)sound; (void)pos; }
@@ -128,12 +139,39 @@ s16 geo_update_animation_frame(struct AnimInfo *info, s32 *accelAssist) {
 static struct Surface *sNativeSurfaces;
 static struct SurfaceNode *sNativeNodes;
 static struct MarioState sNativeMario;
-static struct Object sNativeMarioObject;
+static struct Object *sNativeMarioObject;
 static struct Area sNativeArea;
 static struct Camera sNativeCamera;
 static struct Controller sNativeController;
 static u32 sNativeNodeCount;
 static u16 sNativePreviousButtons;
+static s32 sNativeObjectPoolInitialized;
+
+struct GraphNode *geo_remove_child(struct GraphNode *node) {
+    return node;
+}
+struct GraphNode *geo_add_child(struct GraphNode *parent, struct GraphNode *child) {
+    (void)parent;
+    return child;
+}
+
+static void initialize_native_object_pool(void) {
+    if (sNativeObjectPoolInitialized) return;
+    clear_object_lists(gObjectListArray);
+    gObjectLists = gObjectListArray;
+    /* The stock initializer assumes 240 slots. Seed the canonical free list
+       using the calculator's measured 64-object pool instead. */
+    gFreeObjectList.next = (struct ObjectNode *)&gObjectPool[0];
+    for (int i = 0; i < SM50_NATIVE_OBJECT_POOL_CAPACITY - 1; i++)
+        gObjectPool[i].header.next = (struct ObjectNode *)&gObjectPool[i + 1];
+    gObjectPool[SM50_NATIVE_OBJECT_POOL_CAPACITY - 1].header.next = NULL;
+    sNativeMarioObject = try_allocate_object(&gObjectLists[OBJ_LIST_PLAYER], &gFreeObjectList);
+    if (!sNativeMarioObject) return;
+    sNativeMarioObject->activeFlags = ACTIVE_FLAG_ACTIVE | ACTIVE_FLAG_UNK8;
+    sNativeMarioObject->parentObj = sNativeMarioObject;
+    gMarioObject = sNativeMarioObject;
+    sNativeObjectPoolInitialized = 1;
+}
 
 volatile s32 native_sm64_canonical_anim_index;
 
@@ -187,7 +225,15 @@ static s32 initialize_native_mario(const s32 spawn[3]) {
     if (!floor) return 0;
 
     memset(&sNativeMario, 0, sizeof(sNativeMario));
-    memset(&sNativeMarioObject, 0, sizeof(sNativeMarioObject));
+    initialize_native_object_pool();
+    if (!sNativeMarioObject ||
+        gObjectLists[OBJ_LIST_PLAYER].next != (struct ObjectNode *)sNativeMarioObject ||
+        gObjectLists[OBJ_LIST_PLAYER].prev != (struct ObjectNode *)sNativeMarioObject) return 0;
+    memset(&sNativeMarioObject->header.gfx, 0, sizeof(sNativeMarioObject->header.gfx));
+    memset((u8 *)sNativeMarioObject + sizeof(struct ObjectNode), 0,
+           sizeof(*sNativeMarioObject) - sizeof(struct ObjectNode));
+    sNativeMarioObject->activeFlags = ACTIVE_FLAG_ACTIVE | ACTIVE_FLAG_UNK8;
+    sNativeMarioObject->parentObj = sNativeMarioObject;
     memset(&sNativeArea, 0, sizeof(sNativeArea));
     memset(&sNativeCamera, 0, sizeof(sNativeCamera));
     memset(&sNativeController, 0, sizeof(sNativeController));
@@ -204,12 +250,12 @@ static s32 initialize_native_mario(const s32 spawn[3]) {
     sNativeMario.health = 0x880;
     sNativeMario.waterLevel = -11000;
     sNativeMario.area = &sNativeArea;
-    sNativeMario.marioObj = &sNativeMarioObject;
+    sNativeMario.marioObj = sNativeMarioObject;
     sNativeMario.controller = &sNativeController;
     sNativePreviousButtons = 0;
     gMarioState = &sNativeMario;
-    gMarioObject = &sNativeMarioObject;
-    gCurrentObject = &sNativeMarioObject;
+    gMarioObject = sNativeMarioObject;
+    gCurrentObject = sNativeMarioObject;
     gCurrentArea = &sNativeArea;
     gCurrAreaIndex = 1;
     native_sm64_canonical_pos_x_q8 = (s32)(spawn[0] * 256);

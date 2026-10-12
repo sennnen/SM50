@@ -87,14 +87,20 @@ optimization case study rather than copied as a whole.
   the eight Mario clips extracted from the ROM. Sound, camera and object
   interactions remain platform hooks; cutscene actions and actual object
   behavior are not yet connected.
+- Canonical object-pool startup: the probe now uses the decompilation's
+  `try_allocate_object` and player object list for Mario. Its original 608-byte
+  `Object` layout is backed by a 64-slot static pool (38,912 bytes); the stock
+  240-entry free-list initializer was adapted to seed that bounded pool. The
+  120-frame ROM-backed jump/landing run still passes. Other ROM placements do
+  not yet execute their behaviors.
 - The PS1 port's float/Q12 bridge used bitfield ordering that returned zero on
   this big-endian SH4 target. An endian-safe local bridge fixes that issue;
   direct tests confirm Q12 158 round-trips and 0.5 converts correctly.
 - The existing linker map limits `.data + .bss` to 320 KiB and reserves 192
   KiB for stack. Preview data+BSS uses 181,092 bytes; the PS1 Q12 probe uses
-  203,692 bytes and the current action/input/collision probe with the native
-  spawn table uses 219,048 bytes. Its `.data` is 22,900 bytes, `.bss` is
-  196,148 bytes, and text is 210,256
+  203,692 bytes and the current input/collision probe with the native spawn
+  table and canonical object pool uses 259,148 bytes. Its `.data` is 22,900
+  bytes, `.bss` is 236,248 bytes, and text is 210,524
   bytes.
   The 120-frame emulator run used about 5 KiB of stack high-water, an emulator
   estimate. The canonical probe allocates 98,880 bytes for surfaces and 6,000
@@ -107,8 +113,8 @@ optimization case study rather than copied as a whole.
   reproduces the original surface-cell boundary rules: Battlefield needs 1,060
   surfaces and 5,340 links (93,600 bytes), versus 158,400 bytes in the stock
   canonical reservations. Static partitions plus the 64-object pool fit the
-  measured 320 KiB static budget with 69,720 bytes left for game state after
-  the 64-object pool reservation.
+  measured 320 KiB static budget with 68,532 bytes left for game state after
+  the object pool and its list-head reservation.
 - The canonical `n64decomp/sm64` CC0 repository is pinned as a submodule at
   `9921382a`. Its stationary, moving, airborne, submerged, automatic and
   object action dispatchers, step, collision and math routines compile for SH4; animation

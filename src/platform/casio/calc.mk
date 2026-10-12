@@ -41,6 +41,7 @@ CALC_CANONICAL_OBJECTS := $(CALC_DIR)/canonical/mario_actions_moving.c.o \
 	$(CALC_DIR)/canonical/mario.c.o \
 	$(CALC_DIR)/canonical/mario_step.c.o \
 	$(CALC_DIR)/canonical/math_util.c.o $(CALC_DIR)/canonical/surface_collision.c.o \
+	$(CALC_DIR)/canonical/spawn_object.c.o \
 	$(CALC_DIR)/canonical/native_sm64_canonical_probe.c.o
 CALC_NATIVE_BRIDGE := $(CALC_DIR)/native/native_sm64_collision_bridge.c.o
 CALC_NATIVE_LIBS := -lm
@@ -117,6 +118,9 @@ $(CALC_DIR)/canonical/math_util.c.o: $(CANONICAL_SM64)/src/engine/math_util.c
 	@mkdir -p $(CALC_DIR)/canonical
 	$(SH_CC) $(CALC_CANONICAL_CFLAGS) -c $< -o $@
 $(CALC_DIR)/canonical/surface_collision.c.o: $(CANONICAL_SM64)/src/engine/surface_collision.c
+	@mkdir -p $(CALC_DIR)/canonical
+	$(SH_CC) $(CALC_CANONICAL_CFLAGS) -c $< -o $@
+$(CALC_DIR)/canonical/spawn_object.c.o: $(CANONICAL_SM64)/src/game/spawn_object.c
 	@mkdir -p $(CALC_DIR)/canonical
 	$(SH_CC) $(CALC_CANONICAL_CFLAGS) -c $< -o $@
 $(CALC_DIR)/canonical/native_sm64_canonical_probe.c.o: tests/native_sm64_canonical_probe.c

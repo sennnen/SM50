@@ -49,7 +49,7 @@ the game-state and renderer buffers occupy RAM.
 | Existing preview | 116,056 B | 48 B | 181,044 B | 181,092 B |
 | Preview + native probe | 127,720 B | 22,580 B | 181,100 B | 203,680 B |
 | Canonical ground-step probe | 133,644 B | 22,628 B | 193,420 B | 216,048 B |
-| Canonical action/input/collision probe + native spawn table | 210,256 B | 22,900 B | 196,148 B | 219,048 B |
+| Canonical input/collision + spawn table + 64 canonical objects | 210,524 B | 22,900 B | 236,248 B | 259,148 B |
 
 The probe adds 22,532 bytes of initialized data, principally the Q12
 sine/arctangent tables. This leaves about 124 KiB inside the current static
@@ -83,14 +83,16 @@ of 99 links in one cell. Exact-sized canonical arrays use 93,600 bytes,
 python3 tools/analyze_sm64_ram.py build/native-sm64-probe/bob.pack
 ```
 
-The action/input/collision probe with the 64-entry native spawn table uses 219,048
-bytes of static data+BSS, including
-its two 16-by-16 partitions. Adding the measured 38,912-byte 64-object pool
-would bring it to 257,960 bytes of the 320 KiB static allowance, leaving
-69,720 bytes for other gameplay state. The canonical surface and link arrays
-use 93,600 bytes of the separate allocator; the probe reserves 6,000 links,
-so the emulator reports 98,880 bytes allocated. Its 256 KiB heap is an
-emulator measurement only; physical calculator heap capacity remains unknown.
+The canonical input/collision probe, 64-entry native spawn table, original
+64-entry `Object` pool, and object-list heads use 259,148 bytes of static
+data+BSS, leaving 68,532 bytes within the 320 KiB allowance for more gameplay
+state. Mario now occupies a slot allocated by the decompilation's original
+`try_allocate_object` and resides in the original player object list. The stock
+free-list initializer assumes 240 entries, so this probe seeds the free list
+for the reduced pool. The canonical surface and link arrays use 93,600 bytes
+of the separate allocator; the probe reserves 6,000 links, so the emulator
+reports 98,880 bytes allocated. Its 256 KiB heap is an emulator measurement
+only; physical calculator heap capacity remains unknown.
 The link arrays need headroom for dynamic surfaces and alternate levels, so
 5,340 is only the measured Battlefield static-collision count.
 
