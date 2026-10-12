@@ -3,3 +3,6 @@ build/
 *.ppm
 __pycache__/
 dist/*.zip
+tests/fixtures/*.z64
+tests/fixtures/*.v64
+tests/fixtures/*.n64
