@@ -47,6 +47,7 @@ int col_floor_normal(s32 x, s32 y, s32 z, s32 *nx, s32 *nz);
 #define OBJ_BLOB 5
 #define OBJ_RED_COIN 6
 #define OBJ_RED_STAR_TRIGGER 7
+#define OBJ_KING_BOBOMB 8
 
 typedef struct {
     u32 dl; s16 x, y, z, radius; u8 layer; s16 tx, ty, tz; /* layer: 0 opaque, 1 alpha-test, 2 translucent */
@@ -54,7 +55,7 @@ typedef struct {
 
 typedef struct {
     u16 type, active; s32 x, y, z; /* world units */
-    s32 hx, hz; u16 yaw, param; s32 timer, vy, state;
+    s32 hx, hy, hz; u16 yaw, param; s32 timer, vy, state;
 } Obj;
 
 typedef struct {

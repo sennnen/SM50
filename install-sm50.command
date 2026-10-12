@@ -67,6 +67,6 @@ cmp -s "$G3A" "$VOL/SM50.g3a" || die "verification after copy failed"
 rm -f "$VOL/._SM50.g3a" 2>/dev/null
 grn "Copied and verified SM50.g3a."
 command -v diskutil >/dev/null 2>&1 && { diskutil eject "$VOL" >/dev/null 2>&1 && grn "Calculator ejected." || echo "Eject manually before unplugging."; }
-echo "Battlefield preview: geometry and Mario meshes come from your ROM; full SM64 gameplay is still in progress."
+echo "Battlefield preview: course, Mario and King Bob-omb meshes come from your ROM; full SM64 gameplay is still in progress."
 echo "On the calculator: MENU -> SM50. Arrows move, SHIFT jump, F1/F2 camera, F3 zoom, F4 speed mode, F6 FPS, EXIT pause."
 read -r -p "Press Return to close..." _ || true

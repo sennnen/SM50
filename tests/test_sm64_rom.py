@@ -41,7 +41,7 @@ def main():
                  "--rom", ROM, "-o", pack_path)
     assert "header CRC ok" in output and "triangles: 1101" in output
     assert "collision triangles: 1060" in output and "88 parsed, 13 supported" in output
-    assert "21 objects parsed, 2 supported" in output
+    assert "21 objects parsed, 3 supported" in output
     pack = bytearray(open(pack_path, "rb").read())
     assert pack[:4] == b"S50P"
     col, _ = entry(pack, b"COLV")
@@ -49,11 +49,12 @@ def main():
     skel, _ = entry(pack, b"SKEL")
     anim, _ = entry(pack, b"ANIM")
     assert struct.unpack_from(">I", pack, col)[0] == 1060
-    assert struct.unpack_from(">I", pack, objs)[0] == 15
+    assert struct.unpack_from(">I", pack, objs)[0] == 16
     objects = [(objs + 4 + i * 12, struct.unpack_from(">HhhhHH", pack, objs + 4 + i * 12))
-               for i in range(15)]
+               for i in range(16)]
     assert [o[1][0] for o in objects].count(6) == 8
     assert [o[1][0] for o in objects].count(7) == 1
+    assert [o[1][0] for o in objects].count(8) == 1
     assert struct.unpack_from(">I", pack, skel)[0] == 20
     assert struct.unpack_from(">I", pack, anim)[0] == 8
     idle = anim + struct.unpack_from(">I", pack, anim + 4)[0]
@@ -65,7 +66,7 @@ def main():
     log = os.path.join(OUT, "walk.log")
     output = run("./build/host/sm50-host", "--pack", pack_path, "--frames", "45",
                  "--log", log, "--outdir", OUT, "--shot-at", "35")
-    assert "6 chunks, 1060 col tris, 15 objects, 20 parts, 8 anims" in output
+    assert "6 chunks, 1060 col tris, 16 objects, 20 parts, 8 anims" in output
     rows = open(log).read().splitlines()
     assert "ground=1" in rows[35]
     assert int(re.search(r"tris=(\d+)", rows[35]).group(1)) > 100
@@ -104,6 +105,26 @@ def main():
     output = run("./build/host/sm50-host", "--pack", red_path, "--frames", "4")
     assert "red=8" in output and "stars=1" in output
     print("PASS eight ROM-derived red coins reveal and award the hidden star")
+
+    # Put the ROM-derived boss at the spawn for a deterministic interaction
+    # check. Start with two hits so one grab/throw must reveal his star.
+    boss_pack = bytearray(open(pack_path, "rb").read())
+    sx, _, sz = struct.unpack_from(">hhh", boss_pack, info)
+    struct.pack_into(">h", boss_pack, info + 2, 0)
+    boss_off, boss = next((off, o) for off, o in objects if o[0] == 8)
+    assert boss[1:4] == (1636, 4242, -5567)
+    struct.pack_into(">hhhHH", boss_pack, boss_off + 2, sx, 0, sz + 180, 0, 2)
+    boss_path = os.path.join(OUT, "boss-check.pack")
+    open(boss_path, "wb").write(boss_pack)
+    key_path = os.path.join(OUT, "boss-check.keys")
+    open(key_path, "w").write("0 action\n1\n12 action\n13\n")
+    boss_log = os.path.join(OUT, "boss-check.log")
+    run("./build/host/sm50-host", "--pack", boss_path, "--frames", "42",
+        "--keys", key_path, "--log", boss_log)
+    boss_rows = open(boss_log).read().splitlines()
+    assert "boss=1,2" in boss_rows[0] and "boss=2,2" in boss_rows[12]
+    assert "boss=-1,-1" in boss_rows[40]
+    print("PASS ROM-placed King Bob-omb can be grabbed, thrown and reveal his star")
 
     g3a = os.path.join(OUT, "SM64-BOB.g3a")
     run(sys.executable, "tools/build-g3a.py", "dist/SM50-engine.bin", pack_path, g3a)

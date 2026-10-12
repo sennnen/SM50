@@ -308,7 +308,7 @@ int level_load(const void *pack_mem, u32 size, u8 *col_work, u32 col_work_size) 
         Obj *ob = &L->objs[L->n_objs++];
         memset(ob, 0, sizeof(*ob));
         ob->type = type; ob->active = 1;
-        ob->x = ob->hx = BES16(o + 2); ob->y = BES16(o + 4); ob->z = ob->hz = BES16(o + 6);
+        ob->x = ob->hx = BES16(o + 2); ob->y = ob->hy = BES16(o + 4); ob->z = ob->hz = BES16(o + 6);
         ob->yaw = BE16(o + 8); ob->param = BE16(o + 10);
         if (type == OBJ_COIN) L->coins_total++;
         if (type == OBJ_RED_COIN) L->red_coins_total++;

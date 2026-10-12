@@ -20,7 +20,8 @@ int game_init(const void *pack, u32 size, u8 *work, u32 work_size) {
     c->fx = p->x >> 8; c->fy = (p->y >> 8) + 100; c->fz = p->z >> 8;
     gGame.title = 1;
     for (int i = 0; i < gLevel.n_objs; i++)
-        if (gLevel.objs[i].type == OBJ_STAR || gLevel.objs[i].type == OBJ_RED_STAR_TRIGGER) gGame.stars_total++;
+        if (gLevel.objs[i].type == OBJ_STAR || gLevel.objs[i].type == OBJ_RED_STAR_TRIGGER ||
+            gLevel.objs[i].type == OBJ_KING_BOBOMB) gGame.stars_total++;
     return 0;
 }
 
@@ -147,6 +148,61 @@ static void objects_tick(Player *p) {
                     show_msg("STAR GET!");
                 }
                 break;
+            case OBJ_KING_BOBOMB: {
+                s32 d = dist2(px, py, pz, o->x, o->y, o->z);
+                if (o->state == 0) {
+                    u16 toward = fatan2(px - o->x, pz - o->z);
+                    if (d < 700 * 700) {
+                        if (d < 500 * 500 && o->timer % 120 == 0) show_msg("ALPHA: GRAB BEHIND");
+                        s16 behind = (s16)(toward - o->yaw);
+                        if ((gGame.pressed & BTN_ACTION) && d < 230 * 230 &&
+                            (behind > 0x5000 || behind < -0x5000)) {
+                            o->state = 1; o->timer = 0;
+                            show_msg("THROW: ALPHA");
+                            break;
+                        }
+                        o->yaw = (u16)approach_angle((s16)o->yaw, (s16)toward, 0x0200);
+                        s32 nx = o->x + ((4 * fsin(o->yaw)) >> 14);
+                        s32 nz = o->z + ((4 * fcos(o->yaw)) >> 14);
+                        s32 fy = col_find_floor(nx, o->y + 80, nz, NULL, NULL);
+                        s32 rise = (fy >> 8) - o->y;
+                        if (fy != INT32_MIN && rise > -80 && rise < 80) {
+                            o->x = nx; o->y = fy >> 8; o->z = nz;
+                        }
+                        if (d < 170 * 170 && p->invuln == 0) {
+                            p->health -= 2; p->invuln = 60;
+                            p->action = ACT_KNOCKBACK; p->action_timer = 0;
+                            p->on_ground = 0; p->vy = 25 * 256; p->fwd = 0;
+                            p->sx = (20 * fsin(toward)) >> 6;
+                            p->sz = (20 * fcos(toward)) >> 6;
+                        }
+                    }
+                } else if (o->state == 1) {
+                    o->x = px + ((130 * fsin(p->face_yaw)) >> 14);
+                    o->y = py + 120;
+                    o->z = pz + ((130 * fcos(p->face_yaw)) >> 14);
+                    o->yaw = p->face_yaw;
+                    if ((gGame.pressed & BTN_ACTION) && o->timer > 8) {
+                        o->state = 2; o->timer = 0; o->vy = 30;
+                    }
+                } else if (o->state == 2) {
+                    o->x += (35 * fsin(o->yaw)) >> 14;
+                    o->z += (35 * fcos(o->yaw)) >> 14;
+                    o->y += o->vy; o->vy -= 3;
+                    if (o->timer >= 24) {
+                        o->param++;
+                        o->x = o->hx; o->y = o->hy; o->z = o->hz;
+                        if (o->param >= 3) {
+                            o->type = OBJ_STAR; o->y += 250;
+                            show_msg("KING BOB-OMB STAR!");
+                        } else {
+                            o->state = 3; o->timer = 0;
+                            show_msg("KING BOB-OMB HIT!");
+                        }
+                    }
+                } else if (o->timer > 45) { o->state = 0; o->timer = 0; }
+                break;
+            }
             case OBJ_BLOB: {
                 if (o->state == 0) {
                     /* patrol in a circle around home; chase when close */
@@ -284,6 +340,19 @@ static void draw_model(int idx, s32 x, s32 y, s32 z, u16 yaw, s32 scale) {
     gfx_run_dl(m->dl);
 }
 
+/* The ROM's low-poly King Bob-omb body is a billboard; its upper mesh uses
+ * the same X-up geometry convention as Mario. Static pose until his native
+ * joint animation and interaction state are implemented. */
+static void draw_king_bobomb(const Obj *o) {
+    draw_model(3, o->x, o->y + 80, o->z, o->yaw, ONE14);
+    if (gLevel.n_models > 4 && gfx_sphere_visible(o->x, o->y + 150, o->z, 450)) {
+        Mat34 m;
+        mat_from_trs(&m, o->x, o->y + 100, o->z, 0, o->yaw, 0x4000, ONE14 / 8);
+        gfx_set_model(&m);
+        gfx_run_dl(gLevel.models[4].dl);
+    }
+}
+
 static void draw_title(void) {
     int w = gfx_width(), s = w >= 300 ? 2 : 1;
     int big = w >= 180 ? 3 : 2;
@@ -359,6 +428,7 @@ void game_render(int show_fps, int fps10) {
                 switch (o->type) {
                     case OBJ_COIN: draw_model(0, o->x, o->y, o->z, o->yaw, ONE14); break;
                     case OBJ_RED_COIN: draw_model(2, o->x, o->y, o->z, o->yaw, ONE14); break;
+                    case OBJ_KING_BOBOMB: draw_king_bobomb(o); break;
                     case OBJ_STAR: draw_model(1, o->x, o->y, o->z, o->yaw, ONE14 * 2); break;
                     case OBJ_TREE: draw_model(2, o->x, o->y, o->z, 0, ONE14); break;
                     case OBJ_BLOB: draw_model(3, o->x, o->y, o->z, o->yaw, o->state ? ONE14 / 2 : ONE14); break;
