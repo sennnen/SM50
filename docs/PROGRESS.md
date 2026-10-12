@@ -30,12 +30,14 @@
   interaction dispatch and confirms the original red-coin star-spawn behavior
   creates `bhvStarSpawnCoordinates` at the trigger's home position. Its live
   position and yaw are mirrored into a renderer-facing slot using the ROM's
-  extracted star model. The red
-  coin test can overlap placements, so its first reward check allows multiple
-  coins per tick. The rendered spawn sequence and canonical star collection
-  still need an end-to-end gameplay check. A two-frame emulator run estimated
-  54 FPS after startup; this is instruction-count math, not a calculator
-  measurement.
+  extracted star model. The canonical check advances the original spawn
+  behavior until tangible, collects the star through Mario's interaction path,
+  verifies the course star save bit, and confirms object/renderer removal. The
+  red coin test can overlap placements, so its first reward check allows
+  multiple coins per tick. The star frame itself has not been visually
+  inspected and real-hardware behavior is untested. A two-frame emulator run
+  estimated 54 FPS after startup; this is instruction-count math, not a
+  calculator measurement.
 - The existing synthetic regression suite passes 20/20 groups. Its PNG check
   now uses the Python standard library, so Pillow is unnecessary.
 
@@ -177,8 +179,11 @@ awards the original coin value. A follow-up check collects all eight ROM coins
 through the same dispatcher and confirms `bhvHiddenRedCoinStar` deactivates
 after spawning the original `bhvStarSpawnCoordinates` object at its configured
 home position. Its changing position and yaw are copied to an `OBJ_STAR` slot
-that the existing renderer draws with the ROM-extracted star model. End-to-end
-visual verification of the spawn sequence and collection are still pending.
+that the existing renderer draws with the ROM-extracted star model. The test
+advances the spawn script to tangible state, collects the star using original
+Mario/object interaction, checks the expected save bit, and verifies both the
+canonical object and renderer slot are removed. The spawned-star frame has not
+been visually inspected, and physical-calculator behavior remains unverified.
 The calculator emulator estimates about 54 FPS after startup for this probe,
 based on instruction counts only.
 Golden-coin sparkle behavior is compiled, while audio remains absent. This

@@ -260,6 +260,7 @@ volatile s32 native_sm64_canonical_yellow_coin_check;
 volatile s32 native_sm64_canonical_red_coin_check;
 volatile s32 native_sm64_canonical_red_coin_debug;
 volatile s32 native_sm64_canonical_red_star_check;
+volatile s32 native_sm64_canonical_red_star_collection_check;
 
 struct GraphNode *geo_remove_child(struct GraphNode *node) {
     return node;
@@ -810,6 +811,40 @@ int native_sm64_canonical_probe(void) {
             && spawnedRedStar->oHomeZ == sNativeRedCoinStar->oPosZ
             && sm50_native_red_star_visual_matches((s32)spawnedRedStar->oPosX,
                 (s32)spawnedRedStar->oPosY, (s32)spawnedRedStar->oPosZ);
+
+        /* Let SM64's spawn sequence play until its own behavior makes the
+         * star tangible, then collect it through player/object collision. */
+        native_sm64_canonical_red_star_collection_check = 0;
+        if (spawnedRedStar) {
+            u32 redStarFlag = 1u << ((spawnedRedStar->oBhvParams >> 24) & 0x1f);
+            sNativeSavedStars = 0;
+            native_sm64_canonical_star_collected = 0;
+            for (s32 i = 0; i < 180 &&
+                            (spawnedRedStar->activeFlags & ACTIVE_FLAG_ACTIVE) &&
+                            spawnedRedStar->oAction != 3; i++) {
+                native_sm64_canonical_tick(0, 0);
+            }
+            s32 tangible = spawnedRedStar->oAction == 3
+                && spawnedRedStar->oIntangibleTimer == 0;
+            if (tangible) {
+                sNativeMario.pos[0] = spawnedRedStar->oPosX;
+                sNativeMario.pos[1] = spawnedRedStar->oPosY;
+                sNativeMario.pos[2] = spawnedRedStar->oPosZ;
+                sNativeMario.forwardVel = 0.0f;
+                sNativeMario.action = ACT_IDLE;
+                sNativeMario.floor = NULL;
+                sNativeMario.floorHeight = find_floor(sNativeMario.pos[0],
+                    sNativeMario.pos[1] + 200.0f, sNativeMario.pos[2], &sNativeMario.floor);
+                native_sm64_canonical_tick(0, 0);
+                native_sm64_canonical_tick(0, 0);
+            }
+            native_sm64_canonical_red_star_collection_check = tangible
+                && native_sm64_canonical_star_collected
+                && (sNativeSavedStars & redStarFlag) != 0
+                && !(spawnedRedStar->activeFlags & ACTIVE_FLAG_ACTIVE)
+                && !sm50_native_red_star_visual_matches((s32)spawnedRedStar->oPosX,
+                    (s32)spawnedRedStar->oPosY, (s32)spawnedRedStar->oPosZ);
+        }
     }
 
     sNativeObjectPoolInitialized = 0;
@@ -835,7 +870,9 @@ int native_sm64_canonical_probe(void) {
     native_sm64_canonical_runtime_ready = 1;
     pass = pass && native_sm64_canonical_star_interaction_ok
         && native_sm64_canonical_yellow_coin_check
-        && native_sm64_canonical_red_coin_check;
+        && native_sm64_canonical_red_coin_check
+        && native_sm64_canonical_red_star_check
+        && native_sm64_canonical_red_star_collection_check;
     return pass;
 }
 
