@@ -78,6 +78,12 @@ optimization case study rather than copied as a whole.
   KiB for stack. Preview data+BSS uses 181,092 bytes; the probe uses 203,668
   bytes, mostly due to Q12 lookup tables. The emulator reports a separate
   256 KiB allocator arena, which is not yet confirmed on hardware.
+- SH4 layout measurements give each original SM64 object 548 bytes. Reducing
+  the 200-entry pool to 64 would save 74,528 bytes. A new ROM-pack analyzer
+  reproduces the original surface-cell boundary rules: Battlefield needs 1,060
+  surfaces and 5,340 links (85,120 bytes), versus 140,000 bytes in the stock
+  fixed reservations. Static partitions plus the 64-object pool fit the
+  measured 320 KiB static budget with about 75 KiB left for game state.
 
 This is a successful native-code experiment, not yet an original game loop:
 Mario's full action dispatcher, collision queries, object behavior scripts,

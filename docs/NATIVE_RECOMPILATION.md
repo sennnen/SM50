@@ -50,6 +50,37 @@ heap. Keep level/animation assets in flash and load only active-level data and
 bounded object pools into RAM. The renderer and existing world state already
 consume most of the safe static allocation.
 
+## Measured SM64 state and collision pools
+
+Cross-compiling the PS1 port's `struct Object` for SH4 gives 548 bytes. Its
+default 200-entry object pool therefore consumes 109,600 bytes of static RAM;
+64 entries consume 35,072 bytes and save 74,528 bytes. This is a level/gameplay
+tradeoff, not a free optimization: retain all important actors and prioritize
+discarding effects or other unimportant objects when the pool is full.
+
+The stock surface loader reserves 6,000 eight-byte `SurfaceNode`s and 2,300
+40-byte `Surface`s, totaling 140,000 bytes per level. The new
+`tools/analyze_sm64_ram.py` applies the original game's 16-by-16 partition and
+50-unit cell-boundary rules to the ROM-derived Battlefield collision stream.
+It reports 1,060 surfaces, 5,340 cell links, 256 occupied cells, and a maximum
+of 99 links in one cell. Exact-sized arrays therefore use 85,120 bytes,
+54,880 bytes less than the stock reservations. Run it against a generated pack:
+
+```sh
+python3 tools/analyze_sm64_ram.py build/native-sm64-probe/bob.pack
+```
+
+The PS1 port's two global surface partitions add 12,288 bytes of BSS. Combining
+those partitions, the current native probe's 203,680-byte static footprint,
+and a 64-object pool would use about 251 KiB of the 320 KiB static allowance,
+leaving roughly 75 KiB for Mario state, gameplay globals and other native
+tables. Level-sized surfaces should be allocated from the game heap after its
+real capacity is confirmed; do not include them in that static subtotal. This
+is a viable budget for a first level, but it still needs validation against the
+complete port and physical hardware. The link arrays need headroom for dynamic
+surfaces and any alternate levels, so 5,340 is a measured lower bound for the
+current static Battlefield collision only.
+
 ## SH4 experiment
 
 `make calc-native-probe` compiles PS1-port game source as SH4 big-endian,
