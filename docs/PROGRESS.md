@@ -71,19 +71,26 @@ optimization case study rather than copied as a whole.
   The probe runs beside the real ROM-derived Battlefield renderer in the
   headless calculator emulator. After 30 ticks, walking speed is 98099/4096
   units and slope velocity is 4110/4096 units.
-- The probe now asks the ROM-derived collision backend for the actual floor at
-  Mario's Battlefield spawn point, converts its Q14 normal into the original
-  SM64 `Surface` format, and runs that walking-speed update against it. The
-  emulator reports floor Y 0, normal Y 16384 and speed 98099/4096 after 30
-  ticks. This is a verified collision adapter seam, not the complete ground
-  solver or action dispatcher.
+- The canonical probe now constructs original `Surface` records and 16x16
+  linked partitions from the ROM's actual 1,060 Battlefield collision
+  triangles. It executes canonical `find_floor`, wall and ceiling checks,
+  `update_walking_speed`, and `perform_ground_step` for 30 consecutive ticks.
+  Mario moves 413.1 world units with floor Y 0, normal Y 16384 and speed
+  98099/4096. The canonical motor then runs on each game tick in the separate
+  probe add-in, using calculator arrows to set Mario's intended direction and
+  the original movement and ground-step routines to move over the ROM surfaces.
+  A 20-frame emulator input run showed the resulting Mario movement in the
+  existing renderer. Terrain classification and sound remain adapter stubs;
+  jump/action dispatch and native objects are not yet in the frame loop.
 - The PS1 port's float/Q12 bridge used bitfield ordering that returned zero on
   this big-endian SH4 target. An endian-safe local bridge fixes that issue;
   direct tests confirm Q12 158 round-trips and 0.5 converts correctly.
 - The existing linker map limits `.data + .bss` to 320 KiB and reserves 192
   KiB for stack. Preview data+BSS uses 181,092 bytes; the PS1 Q12 probe uses
-  203,692 bytes and the canonical probe uses 201,584 bytes. The emulator reports a separate
-  256 KiB allocator arena, which is not yet confirmed on hardware.
+  203,692 bytes and the canonical ground-step probe uses 216,048 bytes. The
+  canonical probe allocates 98,880 bytes for surfaces and 6,000 links; the
+  emulator reports a separate 256 KiB allocator arena, not confirmed on
+  hardware.
 - SH4 layout measurements from canonical decomp give `MarioState` 200 B,
   `Surface` 48 B and `Object` 608 B. Reducing its 200-entry pool to 64 saves
   82,688 bytes. (The PS1 fork's compressed object and surface are 548/40 B.)
@@ -91,13 +98,14 @@ optimization case study rather than copied as a whole.
   reproduces the original surface-cell boundary rules: Battlefield needs 1,060
   surfaces and 5,340 links (93,600 bytes), versus 158,400 bytes in the stock
   canonical reservations. Static partitions plus the 64-object pool fit the
-  measured 320 KiB static budget with about 73 KiB left for game state.
+  measured 320 KiB static budget with about 71 KiB left for game state.
 - The canonical `n64decomp/sm64` CC0 repository is pinned as a submodule at
-  `9921382a`. Its unmodified `mario_actions_moving.c` and `math_util.c` compile
-  to SH4 and link into a separate add-in. `update_walking_speed` executes in
-  the CG50 emulator against the real spawn floor and returns 98099/4096 after
-  30 ticks, matching the PS1-port result. This confirms the canonical source,
-  not only the PS1 fork, is a viable native starting point.
+  `9921382a`. Its unmodified `mario_actions_moving.c`, `mario_step.c`,
+  `surface_collision.c` and `math_util.c` compile to SH4 and link into a
+  separate add-in. The CG50 emulator executes canonical walking and ground
+  steps over ROM-derived geometry, and the probe's per-frame loop routes
+  directional input through that motor. The full action dispatcher and
+  object behavior runtime are still outstanding.
 
 This is a successful native-code experiment, not yet an original game loop:
 Mario's full action dispatcher, collision queries, object behavior scripts,

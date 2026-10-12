@@ -17,3 +17,13 @@ int sm50_native_rom_floor(s32 values[4]) {
     values[3] = nz;
     return 1;
 }
+
+int sm50_native_rom_data(s32 spawn[3], const u8 **collision, u32 *size) {
+    const u8 *colv = pack_find(&gLevel.pack, "COLV", size);
+    if (!colv) return 0;
+    spawn[0] = gLevel.spawn_x;
+    spawn[1] = gLevel.spawn_y;
+    spawn[2] = gLevel.spawn_z;
+    *collision = colv;
+    return 1;
+}

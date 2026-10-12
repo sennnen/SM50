@@ -6,6 +6,9 @@
 #include <stdio.h>
 
 Game gGame;
+#ifdef SM50_CANONICAL_PROBE
+extern void native_sm64_canonical_tick(u16 buttons, u16 camera_yaw);
+#endif
 
 int game_init(const void *pack, u32 size, u8 *work, u32 work_size) {
     memset(&gGame, 0, sizeof(gGame));
@@ -261,8 +264,12 @@ void game_tick(u16 buttons) {
     if (g->pressed & BTN_PAUSE) g->paused = !g->paused;
     if (g->paused) return;
     g->ticks++;
+#ifdef SM50_CANONICAL_PROBE
+    native_sm64_canonical_tick(buttons, g->cam.yaw);
+#else
     player_tick(&g->p, buttons, g->pressed, g->cam.yaw);
     objects_tick(&g->p);
+#endif
     camera_tick(&g->cam, &g->p, buttons, g->pressed);
     if (g->msg_timer > 0) g->msg_timer--;
     if (g->won) g->win_timer++;

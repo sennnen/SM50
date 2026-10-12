@@ -33,7 +33,9 @@ CALC_CANONICAL_CFLAGS := -m4-nofpu -mb -O2 -ffreestanding -fno-builtin -fno-pic 
 	-Dapproach_s32=sm64_approach_s32 \
 	-I$(CANONICAL_SM64)/include -I$(CANONICAL_SM64)/src -I$(CANONICAL_SM64) -I$(CANONICAL_SM64)/pc
 CALC_CANONICAL_OBJECTS := $(CALC_DIR)/canonical/mario_actions_moving.c.o \
-	$(CALC_DIR)/canonical/math_util.c.o $(CALC_DIR)/canonical/native_sm64_canonical_probe.c.o
+	$(CALC_DIR)/canonical/mario_step.c.o \
+	$(CALC_DIR)/canonical/math_util.c.o $(CALC_DIR)/canonical/surface_collision.c.o \
+	$(CALC_DIR)/canonical/native_sm64_canonical_probe.c.o
 CALC_NATIVE_BRIDGE := $(CALC_DIR)/native/native_sm64_collision_bridge.c.o
 CALC_NATIVE_LIBS := -lm
 endif
@@ -78,7 +80,13 @@ $(CALC_DIR)/native/native_sm64_collision_bridge.c.o: src/platform/casio/native_s
 $(CALC_DIR)/canonical/mario_actions_moving.c.o: $(CANONICAL_SM64)/src/game/mario_actions_moving.c
 	@mkdir -p $(CALC_DIR)/canonical
 	$(SH_CC) $(CALC_CANONICAL_CFLAGS) -c $< -o $@
+$(CALC_DIR)/canonical/mario_step.c.o: $(CANONICAL_SM64)/src/game/mario_step.c
+	@mkdir -p $(CALC_DIR)/canonical
+	$(SH_CC) $(CALC_CANONICAL_CFLAGS) -c $< -o $@
 $(CALC_DIR)/canonical/math_util.c.o: $(CANONICAL_SM64)/src/engine/math_util.c
+	@mkdir -p $(CALC_DIR)/canonical
+	$(SH_CC) $(CALC_CANONICAL_CFLAGS) -c $< -o $@
+$(CALC_DIR)/canonical/surface_collision.c.o: $(CANONICAL_SM64)/src/engine/surface_collision.c
 	@mkdir -p $(CALC_DIR)/canonical
 	$(SH_CC) $(CALC_CANONICAL_CFLAGS) -c $< -o $@
 $(CALC_DIR)/canonical/native_sm64_canonical_probe.c.o: tests/native_sm64_canonical_probe.c

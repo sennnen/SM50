@@ -48,6 +48,7 @@ the game-state and renderer buffers occupy RAM.
 | --- | ---: | ---: | ---: | ---: |
 | Existing preview | 116,056 B | 48 B | 181,044 B | 181,092 B |
 | Preview + native probe | 127,720 B | 22,580 B | 181,100 B | 203,680 B |
+| Canonical ground-step probe | 133,644 B | 22,628 B | 193,420 B | 216,048 B |
 
 The probe adds 22,532 bytes of initialized data, principally the Q12
 sine/arctangent tables. This leaves about 124 KiB inside the current static
@@ -81,15 +82,17 @@ of 99 links in one cell. Exact-sized canonical arrays use 93,600 bytes,
 python3 tools/analyze_sm64_ram.py build/native-sm64-probe/bob.pack
 ```
 
-The two global surface partitions add 12,288 bytes of BSS. The canonical probe
-currently uses 201,584 bytes of static data+BSS. Combining those partitions,
-the probe, and a 64-object pool would use about 253 KiB of the 320 KiB static
-allowance, leaving roughly 73 KiB for remaining gameplay globals and native
-tables. Level-sized surfaces would use 93,600 bytes from the separate game
-heap; its real capacity still needs measurement on hardware. This is viable
-for a first level, but must be rechecked against the complete port. The link
-arrays also need headroom for dynamic surfaces and alternate levels, so 5,340
-is the measured Battlefield static-collision count only.
+The canonical ground-step probe uses 216,048 bytes of static data+BSS,
+including its two 16-by-16 partitions. Adding a 64-object pool would bring it
+to 254,960 bytes of the 320 KiB static allowance, leaving about 71 KiB for
+remaining gameplay globals and native tables. The canonical surface and link
+arrays use 93,600 bytes of the separate allocator; the probe reserves 6,000
+links, so the emulator reports 98,880 bytes allocated. Its 256 KiB heap is an
+emulator measurement only; physical calculator heap capacity remains unknown.
+This is viable for a first-level build but must be rechecked as the game loop
+and object behaviors are integrated. The link arrays need headroom for dynamic
+surfaces and alternate levels, so 5,340 is only the measured Battlefield
+static-collision count.
 
 ## SH4 experiment
 
@@ -108,12 +111,23 @@ and walking velocity reaches 98099/4096 after 30 ticks. Emulator throughput
 is only an instruction-count estimate and has not been measured on calculator
 hardware.
 
-The probe now also calls the existing ROM collision backend at Battlefield's
-spawn point, converts its floor normal into the PS1/original `Surface` layout,
-and runs the original walking-speed update on that real surface. The emulator
-reports floor height 0, normal Y 16384 (Q14), and 30-tick walking speed
-98099/4096. This validates one narrow backend boundary; it is not yet the
-original ground-step solver or full walking action.
+The canonical probe builds original 48-byte `Surface` structures and 16-by-16
+linked partitions from the ROM's 1,060 collision triangles. It runs the
+decompilation's own `find_floor`, wall and ceiling collision queries,
+`update_walking_speed`, and `perform_ground_step` for 30 consecutive ticks on
+that geometry. The emulator reports floor height 0, normal Y 16384 (Q14),
+walking speed 98099/4096, and 413.1 units of forward movement. After this
+bring-up run, the canonical motor is called on every game tick in the
+canonical-probe add-in: calculator arrow keys select intended direction, the
+original walking-speed routine updates Mario, and the original ground-step
+routine resolves movement against the loaded surfaces. A 20-frame emulator
+input run moved Mario under this path and rendered the ROM-derived Battlefield
+and Mario model. The ground-step test uses a small adapter for
+renderer-independent globals and stubs terrain classification and sound;
+those stubs do not affect this flat spawn case. The per-frame harness does not
+yet call the full action dispatcher, jumping actions, object behavior VM,
+level scripts or original camera. The approximately 48 FPS figure is an
+emulator instruction-count estimate, not a calculator measurement.
 
 Build and run this ROM-local experiment with:
 
@@ -133,13 +147,10 @@ The ROM-derived pack, add-in and logs are written under ignored `build/`.
 
 ## Next integration boundary
 
-The experiment proves that original-derived movement routines and Q12 math can
-be linked into the existing SH4 add-in, and that a real ROM floor can be
-presented to the original surface ABI. It does not run the full Mario action
-dispatcher, collision solver, object behavior VM, level scripts or original
-camera. The next port layer should bring in the canonical Mario state/action
-dispatcher and per-frame update, then replace this single floor-query adapter
-with the complete `Surface` partition and ground-step interfaces. After that,
-import behavior scripts and the bounded subset of level/area execution needed
-for Battlefield. Keep rendering as a backend that consumes the resulting
-original game state and ROM geometry.
+The experiment now runs canonical walking-speed and ground-step logic with the
+decompilation's floor, wall and ceiling queries against ROM collision. It does
+not yet run the full Mario action dispatcher, object behavior VM, level scripts
+or original camera. The next port layer should bring in the canonical per-frame
+action dispatcher, then add the Battlefield level/area script and object
+behavior execution needed for enemies and stars. Keep rendering as a backend
+that consumes the resulting original game state and ROM geometry.
