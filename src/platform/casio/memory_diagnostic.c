@@ -68,24 +68,25 @@ static unsigned measure_os_heap(void)
     return bytes;
 }
 
-/* Only write-test the community-reported extension if every word in it is
- * initially zero. Each tested word is restored immediately after the check. */
+/* Sample the community-reported extension with reversible address/data
+ * checks. Two locations are held at distinct patterns together so mirrored
+ * addresses cannot pass merely because the same value reads back. */
 static int probe_extension(u32 *tested)
 {
-    volatile u32 *p = (volatile u32 *)EXT_BEGIN;
-    const u32 words = (EXT_END - EXT_BEGIN) / 4;
+    volatile u32 *base = (volatile u32 *)EXT_BEGIN;
     *tested = 0;
-    for (u32 i = 0; i < words; i++) {
-        if (p[i] != 0) return 1;
-    }
-    for (u32 off = 0; off < EXT_END - EXT_BEGIN; off += EXT_STEP) {
+    for (u32 off = EXT_STEP; off < EXT_END - EXT_BEGIN; off += EXT_STEP) {
         volatile u32 *q = (volatile u32 *)(EXT_BEGIN + off);
-        u32 old = *q;
-        u32 pattern = (EXT_BEGIN + off) ^ 0xa55a39c7u;
-        *q = pattern;
-        u32 got = *q;
-        *q = old;
-        if (got != pattern || *q != old) return 2;
+        u32 old_base = *base, old_target = *q;
+        u32 pat_base = EXT_BEGIN ^ 0x5aa5c33cu;
+        u32 pat_target = (EXT_BEGIN + off) ^ 0xa55a39c7u;
+        *base = pat_base;
+        *q = pat_target;
+        u32 got_base = *base, got_target = *q;
+        *q = old_target;
+        *base = old_base;
+        if (got_base != pat_base || got_target != pat_target ||
+            *base != old_base || *q != old_target) return 2;
         ++*tested;
     }
     return 0;
@@ -108,23 +109,11 @@ static unsigned benchmark_present(void)
     return frames;
 }
 
-static int key_down(int code)
-{
-    const volatile unsigned short *kr = (const volatile unsigned short *)0xa44b0000;
-    int row = code % 10, col = code / 10 - 1;
-    int word = row >> 1, bit = col + 8 * (row & 1);
-    return (kr[word] >> bit) & 1;
-}
-
-static void wait_for_key(int wanted)
+static int wait_for_key(void)
 {
     int key = 0;
-    for (;;) {
-        GetKey(&key);
-        if (key != wanted) continue;
-        while (key_down(key)) { }
-        return;
-    }
+    GetKey(&key);
+    return key;
 }
 
 int main(void)
@@ -140,37 +129,31 @@ int main(void)
     snprintf(line, sizeof line, "FRQCR 0x%08x", frqcr);
     char heap[32];
     snprintf(heap, sizeof heap, "OS heap %u KB", os_heap / 1024);
-    screen(line, heap, "F1: test extra RAM", "EXIT: skip RAM test");
+    screen(line, heap, "Any key: RAM probe", "EXIT: skip; back up first");
 
-    int key = 0;
-    for (;;) {
-        GetKey(&key);
-        if (key == 79 || key == 47) {
-            while (key_down(key)) { }
-            break;
-        }
-    }
-    if (key == 79) {
-        screen("Scanning 6 MiB RAM", "Zero check is read-only", "Sparse test only if all zero", "Please wait...");
+    int key = wait_for_key();
+    if (key != 47) {
+        screen("Sampling 6 MiB RAM", "Writes restored at once", "Checking data/address lines", "Please wait...");
         u32 tested = 0;
         int result = probe_extension(&tested);
         char first[32], second[32];
         if (result == 0) {
-            snprintf(first, sizeof first, "6 MiB zero scan PASS");
-            snprintf(second, sizeof second, "%u writes restored", tested);
-            screen(first, second, "RAM sample passed", "Press key for LCD test");
-        } else if (result == 1) {
-            screen("RAM region nonzero", "No write test done", "Region left untouched", "Press key for LCD test");
+            snprintf(first, sizeof first, "6 MiB sample PASS");
+            snprintf(second, sizeof second, "%u pairs restored", tested);
+            screen(first, second, "RAM data/address OK", "Any key: LCD test");
         } else {
-            screen("RAM sample failed", "Address/data mismatch", "Tried word restored", "Press key for LCD test");
+            snprintf(first, sizeof first, "RAM sample failed");
+            snprintf(second, sizeof second, "after %u pairs", tested);
+            screen(first, second, "Address/data mismatch", "Test values restored");
         }
-        wait_for_key(47);
+        wait_for_key();
     }
 
+    /* EXIT skips straight to this benchmark; probe results wait for a key. */
     unsigned fps = benchmark_present();
     char result[32];
     snprintf(result, sizeof result, "LCD transfer %u FPS", fps);
-    screen(line, heap, result, "EXIT: return to menu");
-    wait_for_key(47);
+    screen(line, heap, result, "Any key: return to menu");
+    wait_for_key();
     return 0;
 }
