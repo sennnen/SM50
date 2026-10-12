@@ -77,8 +77,10 @@ optimization case study rather than copied as a whole.
   `update_walking_speed`, and `perform_ground_step` for 30 consecutive ticks.
   Mario moves 413.1 units in the diagnostic. The probe resets him to the ROM's
   actual spawn and yaw with zero initial speed before runtime. Each game tick
-  now calls canonical stationary, moving, airborne, submerged, automatic and
-  object action dispatch. Calculator movement reaches original `act_walking`,
+  now runs canonical `update_mario_inputs` for button/stick normalization,
+  action timers and geometry-derived collision flags, then runs the canonical
+  same-frame action-group transition loop for stationary, moving, airborne,
+  submerged, automatic and object actions. Calculator movement reaches original `act_walking`,
   jump transitions run original `act_jump` and `perform_air_step`, and landing
   and freefall use their original handlers. A 120-frame input run completed
   without faults over the ROM collision mesh. Canonical animation IDs map to
@@ -90,9 +92,9 @@ optimization case study rather than copied as a whole.
   direct tests confirm Q12 158 round-trips and 0.5 converts correctly.
 - The existing linker map limits `.data + .bss` to 320 KiB and reserves 192
   KiB for stack. Preview data+BSS uses 181,092 bytes; the PS1 Q12 probe uses
-  203,692 bytes and the current six-group action probe with the native spawn
-  table uses 218,936 bytes. Its `.data` is 22,900 bytes, `.bss` is 196,036
-  bytes, and text is 208,716
+  203,692 bytes and the current action/input/collision probe with the native
+  spawn table uses 219,048 bytes. Its `.data` is 22,900 bytes, `.bss` is
+  196,148 bytes, and text is 210,256
   bytes.
   The 120-frame emulator run used about 5 KiB of stack high-water, an emulator
   estimate. The canonical probe allocates 98,880 bytes for surfaces and 6,000
@@ -105,7 +107,7 @@ optimization case study rather than copied as a whole.
   reproduces the original surface-cell boundary rules: Battlefield needs 1,060
   surfaces and 5,340 links (93,600 bytes), versus 158,400 bytes in the stock
   canonical reservations. Static partitions plus the 64-object pool fit the
-  measured 320 KiB static budget with 69,832 bytes left for game state after
+  measured 320 KiB static budget with 69,720 bytes left for game state after
   the 64-object pool reservation.
 - The canonical `n64decomp/sm64` CC0 repository is pinned as a submodule at
   `9921382a`. Its stationary, moving, airborne, submerged, automatic and

@@ -49,7 +49,7 @@ the game-state and renderer buffers occupy RAM.
 | Existing preview | 116,056 B | 48 B | 181,044 B | 181,092 B |
 | Preview + native probe | 127,720 B | 22,580 B | 181,100 B | 203,680 B |
 | Canonical ground-step probe | 133,644 B | 22,628 B | 193,420 B | 216,048 B |
-| Six canonical action groups + native spawn table | 208,716 B | 22,900 B | 196,036 B | 218,936 B |
+| Canonical action/input/collision probe + native spawn table | 210,256 B | 22,900 B | 196,148 B | 219,048 B |
 
 The probe adds 22,532 bytes of initialized data, principally the Q12
 sine/arctangent tables. This leaves about 124 KiB inside the current static
@@ -83,11 +83,11 @@ of 99 links in one cell. Exact-sized canonical arrays use 93,600 bytes,
 python3 tools/analyze_sm64_ram.py build/native-sm64-probe/bob.pack
 ```
 
-The six-group action probe with the 64-entry native spawn table uses 218,936
+The action/input/collision probe with the 64-entry native spawn table uses 219,048
 bytes of static data+BSS, including
 its two 16-by-16 partitions. Adding the measured 38,912-byte 64-object pool
-would bring it to 257,848 bytes of the 320 KiB static allowance, leaving
-69,832 bytes for other gameplay state. The canonical surface and link arrays
+would bring it to 257,960 bytes of the 320 KiB static allowance, leaving
+69,720 bytes for other gameplay state. The canonical surface and link arrays
 use 93,600 bytes of the separate allocator; the probe reserves 6,000 links,
 so the emulator reports 98,880 bytes allocated. Its 256 KiB heap is an
 emulator measurement only; physical calculator heap capacity remains unknown.
@@ -118,13 +118,14 @@ decompilation's own `find_floor`, wall and ceiling collision queries,
 that geometry. The emulator reports floor height 0, normal Y 16384 (Q14),
 walking speed 98099/4096, and 413.1 units of diagnostic forward movement. The
 probe then resets Mario to the ROM's spawn position, yaw and zero velocity so
-the diagnostic does not affect play. Each game tick dispatches through the
-canonical stationary, moving, airborne, submerged, automatic or object action
-group.
-The movement input reaches `act_walking`; jumping reaches `set_mario_action`,
+the diagnostic does not affect play. Each game tick runs canonical
+`update_mario_inputs`: button edges and timers, stick magnitude/yaw, plus
+floor, wall, ceiling, water, gas and off-floor input flags from ROM collision.
+The canonical action-group loop also follows same-frame transitions through
+stationary, moving, airborne, submerged, automatic and object actions.
+Movement reaches `act_walking`; jumping reaches `set_mario_action`,
 `act_jump`, `common_air_action_step`, `perform_air_step` and original landing
-actions. The same original collision routines operate on the ROM-derived
-surfaces.
+actions over the ROM-derived surfaces.
 
 The eight animation IDs already extracted from the ROM are mapped from
 canonical animation requests to the renderer's idle, walk, run, jump, fall,

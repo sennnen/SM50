@@ -29,6 +29,7 @@ enum {
 
 extern s32 sm50_native_rom_data(s32 spawn[4], const u8 **collision, u32 *size);
 extern void update_walking_speed(struct MarioState *m);
+extern void update_mario_inputs(struct MarioState *m);
 extern s32 mario_execute_moving_action(struct MarioState *m);
 extern s32 mario_execute_airborne_action(struct MarioState *m);
 extern s32 mario_execute_stationary_action(struct MarioState *m);
@@ -55,6 +56,7 @@ SpatialPartitionCell gDynamicSurfacePartition[NUM_CELLS][NUM_CELLS];
 s32 gFindFloorIncludeSurfaceIntangible;
 s32 gCheckingSurfaceCollisionsForCamera;
 s32 gNumFindFloorMisses;
+s8 gShowDebugText;
 u32 gGlobalTimer;
 TerrainData *gEnvironmentRegions;
 u32 gAudioRandom;
@@ -115,6 +117,9 @@ s32 retrieve_animation_index(s32 frame, u16 **attributes) {
     (void)frame; (void)attributes;
     return 0;
 }
+void print_text_fmt_int(s32 x, s32 y, const char *text, s32 value) {
+    (void)x; (void)y; (void)text; (void)value;
+}
 s16 geo_update_animation_frame(struct AnimInfo *info, s32 *accelAssist) {
     (void)info; (void)accelAssist;
     return 0;
@@ -125,6 +130,7 @@ static struct SurfaceNode *sNativeNodes;
 static struct MarioState sNativeMario;
 static struct Object sNativeMarioObject;
 static struct Area sNativeArea;
+static struct Camera sNativeCamera;
 static struct Controller sNativeController;
 static u32 sNativeNodeCount;
 static u16 sNativePreviousButtons;
@@ -183,8 +189,10 @@ static s32 initialize_native_mario(const s32 spawn[3]) {
     memset(&sNativeMario, 0, sizeof(sNativeMario));
     memset(&sNativeMarioObject, 0, sizeof(sNativeMarioObject));
     memset(&sNativeArea, 0, sizeof(sNativeArea));
+    memset(&sNativeCamera, 0, sizeof(sNativeCamera));
     memset(&sNativeController, 0, sizeof(sNativeController));
     sNativeArea.terrainType = TERRAIN_GRASS;
+    sNativeArea.camera = &sNativeCamera;
     sNativeMario.floor = floor;
     sNativeMario.floorHeight = floorHeight;
     sNativeMario.pos[0] = spawn[0];
@@ -350,46 +358,40 @@ int native_sm64_canonical_probe(void) {
 void native_sm64_canonical_tick(u16 buttons, u16 cameraYaw) {
     s32 ix = ((buttons & 8) != 0) - ((buttons & 4) != 0);
     s32 iz = ((buttons & 1) != 0) - ((buttons & 2) != 0);
-    if (ix || iz) {
-        sNativeMario.intendedYaw = cameraYaw + atan2s(-ix, iz);
-        sNativeMario.intendedMag = 32.0f;
-    } else {
-        sNativeMario.intendedYaw = sNativeMario.faceAngle[1];
-        sNativeMario.intendedMag = 0.0f;
-    }
 
     s32 jumpPressed = (buttons & 0x10) && !(sNativePreviousButtons & 0x10);
     s32 actionPressed = (buttons & 0x20) && !(sNativePreviousButtons & 0x20);
     sNativePreviousButtons = buttons;
+    sNativeCamera.yaw = (s16)cameraYaw;
     sNativeController.buttonDown = ((buttons & 0x10) ? A_BUTTON : 0)
         | ((buttons & 0x20) ? B_BUTTON : 0);
     sNativeController.buttonPressed = (jumpPressed ? A_BUTTON : 0)
         | (actionPressed ? B_BUTTON : 0);
-    sNativeController.stickX = (f32)ix * 64.0f;
-    sNativeController.stickY = (f32)iz * 64.0f;
+    /* Map calculator up/right into the original N64 stick axes. */
+    sNativeController.stickX = (f32)iz * 64.0f;
+    sNativeController.stickY = (f32)ix * 64.0f;
     sNativeController.stickMag = (ix || iz) ? 64.0f : 0.0f;
-    sNativeMario.input = (ix || iz ? INPUT_NONZERO_ANALOG : 0)
-        | (jumpPressed ? INPUT_A_PRESSED : 0)
-        | (actionPressed ? INPUT_B_PRESSED : 0);
-    struct Surface *floor = NULL;
-    f32 height = find_floor(sNativeMario.pos[0], sNativeMario.pos[1] + 200.0f,
-                            sNativeMario.pos[2], &floor);
-    if (floor) {
-        sNativeMario.floor = floor;
-        sNativeMario.floorHeight = height;
-    }
-    if (sNativeMario.action & ACT_FLAG_AIR) {
-        mario_execute_airborne_action(&sNativeMario);
-    } else if ((sNativeMario.action & ACT_GROUP_MASK) == ACT_GROUP_MOVING) {
-        mario_execute_moving_action(&sNativeMario);
-    } else if ((sNativeMario.action & ACT_GROUP_MASK) == ACT_GROUP_STATIONARY) {
-        mario_execute_stationary_action(&sNativeMario);
-    } else if ((sNativeMario.action & ACT_GROUP_MASK) == ACT_GROUP_SUBMERGED) {
-        mario_execute_submerged_action(&sNativeMario);
-    } else if ((sNativeMario.action & ACT_GROUP_MASK) == ACT_GROUP_AUTOMATIC) {
-        mario_execute_automatic_action(&sNativeMario);
-    } else if ((sNativeMario.action & ACT_GROUP_MASK) == ACT_GROUP_OBJECT) {
-        mario_execute_object_action(&sNativeMario);
+    update_mario_inputs(&sNativeMario);
+    if (sNativeMario.floor) {
+        s32 inLoop = TRUE;
+        while (inLoop) {
+            switch (sNativeMario.action & ACT_GROUP_MASK) {
+                case ACT_GROUP_STATIONARY:
+                    inLoop = mario_execute_stationary_action(&sNativeMario); break;
+                case ACT_GROUP_MOVING:
+                    inLoop = mario_execute_moving_action(&sNativeMario); break;
+                case ACT_GROUP_AIRBORNE:
+                    inLoop = mario_execute_airborne_action(&sNativeMario); break;
+                case ACT_GROUP_SUBMERGED:
+                    inLoop = mario_execute_submerged_action(&sNativeMario); break;
+                case ACT_GROUP_AUTOMATIC:
+                    inLoop = mario_execute_automatic_action(&sNativeMario); break;
+                case ACT_GROUP_OBJECT:
+                    inLoop = mario_execute_object_action(&sNativeMario); break;
+                default:
+                    inLoop = FALSE; break;
+            }
+        }
     }
 
     native_sm64_canonical_pos_x_q8 = (s32)(sNativeMario.pos[0] * 256.0f);
