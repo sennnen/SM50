@@ -18,6 +18,10 @@ def run(command, *, capture=False):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--rom", required=True, type=Path, help="local US SM64 ROM")
+    parser.add_argument("--source", choices=("ps1", "canonical"), default="ps1",
+                        help="source project for original movement code")
+    parser.add_argument("--canonical-source", type=Path,
+                        help="canonical decomp checkout (default: deps/n64decomp-sm64)")
     parser.add_argument("--skip-emulator", action="store_true")
     parser.add_argument("--frames", type=int, default=1)
     args = parser.parse_args()
@@ -25,15 +29,25 @@ def main():
     if not rom.is_file():
         parser.error(f"ROM not found: {rom}")
 
-    run(["make", "calc-native-probe"])
     out = ROOT / "build" / "native-sm64-probe"
     out.mkdir(parents=True, exist_ok=True)
     pack = out / "bob.pack"
-    g3a = out / "SM64NativeProbe.g3a"
+    if args.source == "canonical":
+        source = (args.canonical_source or ROOT / "deps" / "n64decomp-sm64").expanduser().resolve()
+        if not (source / "src/game/mario_actions_moving.c").is_file():
+            parser.error(f"canonical source checkout not found at {source}; initialize deps/n64decomp-sm64")
+        name = "SM64CanonicalProbe"
+        run(["make", "calc-canonical-probe", f"CANONICAL_SM64={source}"])
+        marker = "SM64 canonical PASS"
+    else:
+        name = "SM64NativeProbe"
+        run(["make", "calc-native-probe"])
+        marker = "SM64 Q12 PASS"
     run(["python3", "tools/n64pack.py", "manifests/sm64-us-bob.json",
          "--rom", str(rom), "-o", str(pack)])
     run(["python3", "tools/analyze_sm64_ram.py", str(pack)])
-    run(["python3", "tools/build-g3a.py", "build/calc/SM64NativeProbe.bin",
+    g3a = out / f"{name}.g3a"
+    run(["python3", "tools/build-g3a.py", f"build/calc/{name}.bin",
          str(pack), str(g3a), "--name", "SM64Probe"])
     print(f"Built local-ROM add-in: {g3a}")
 
@@ -44,7 +58,7 @@ def main():
             result = run([str(emulator), "--max-frames", str(args.frames),
                           "--log", str(log), str(g3a)], capture=True)
             print(result.stdout, end="")
-            if "SM64 Q12 PASS" not in result.stdout:
+            if marker not in result.stdout:
                 raise SystemExit("native movement probe did not report PASS")
         else:
             print(f"Emulator not found at {emulator}; add-in was built but not run.")

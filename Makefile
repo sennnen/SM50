@@ -29,6 +29,9 @@ include src/platform/casio/calc.mk
 calc-native-probe:
 	$(MAKE) calc CALC_NAME=SM64NativeProbe SM50_NATIVE_PROBE=1 CALC_EXTRA='-DSM50_NATIVE_PROBE -DSM50_EMU_DEBUG'
 
+calc-canonical-probe:
+	$(MAKE) calc CALC_NAME=SM64CanonicalProbe SM50_CANONICAL_PROBE=1 CALC_EXTRA='-DSM50_CANONICAL_PROBE -DSM50_EMU_DEBUG'
+
 test: host content
 	python3 tests/run_tests.py
 
@@ -38,4 +41,4 @@ test-rom: host
 clean:
 	rm -rf build
 
-.PHONY: all content host calc calc-native-probe test test-rom clean
+.PHONY: all content host calc calc-native-probe calc-canonical-probe test test-rom clean

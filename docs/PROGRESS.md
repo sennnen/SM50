@@ -81,15 +81,23 @@ optimization case study rather than copied as a whole.
   this big-endian SH4 target. An endian-safe local bridge fixes that issue;
   direct tests confirm Q12 158 round-trips and 0.5 converts correctly.
 - The existing linker map limits `.data + .bss` to 320 KiB and reserves 192
-  KiB for stack. Preview data+BSS uses 181,092 bytes; the probe uses 203,692
-  bytes, mostly due to Q12 lookup tables. The emulator reports a separate
+  KiB for stack. Preview data+BSS uses 181,092 bytes; the PS1 Q12 probe uses
+  203,692 bytes and the canonical probe uses 201,584 bytes. The emulator reports a separate
   256 KiB allocator arena, which is not yet confirmed on hardware.
-- SH4 layout measurements give each original SM64 object 548 bytes. Reducing
-  the 200-entry pool to 64 would save 74,528 bytes. A new ROM-pack analyzer
+- SH4 layout measurements from canonical decomp give `MarioState` 200 B,
+  `Surface` 48 B and `Object` 608 B. Reducing its 200-entry pool to 64 saves
+  82,688 bytes. (The PS1 fork's compressed object and surface are 548/40 B.)
+  A new ROM-pack analyzer
   reproduces the original surface-cell boundary rules: Battlefield needs 1,060
-  surfaces and 5,340 links (85,120 bytes), versus 140,000 bytes in the stock
-  fixed reservations. Static partitions plus the 64-object pool fit the
-  measured 320 KiB static budget with about 75 KiB left for game state.
+  surfaces and 5,340 links (93,600 bytes), versus 158,400 bytes in the stock
+  canonical reservations. Static partitions plus the 64-object pool fit the
+  measured 320 KiB static budget with about 73 KiB left for game state.
+- The canonical `n64decomp/sm64` CC0 repository is pinned as a submodule at
+  `9921382a`. Its unmodified `mario_actions_moving.c` and `math_util.c` compile
+  to SH4 and link into a separate add-in. `update_walking_speed` executes in
+  the CG50 emulator against the real spawn floor and returns 98099/4096 after
+  30 ticks, matching the PS1-port result. This confirms the canonical source,
+  not only the PS1 fork, is a viable native starting point.
 
 This is a successful native-code experiment, not yet an original game loop:
 Mario's full action dispatcher, collision queries, object behavior scripts,

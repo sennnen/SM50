@@ -43,6 +43,12 @@ extern volatile s32 native_sm64_probe_rom_floor_y_q8;
 extern volatile s32 native_sm64_probe_rom_normal_y_q14;
 extern volatile s32 native_sm64_probe_rom_walk_speed_q12;
 #endif
+#ifdef SM50_CANONICAL_PROBE
+extern int native_sm64_canonical_probe(void);
+extern volatile s32 native_sm64_canonical_floor_y_q8;
+extern volatile s32 native_sm64_canonical_floor_ny_q14;
+extern volatile s32 native_sm64_canonical_speed_q12;
+#endif
 extern const u8 rom_image_end[];
 
 /* Locate the data pack: appended after the add-in image by tools/build-g3a.py
@@ -178,6 +184,14 @@ int main(void) {
         native_sm64_probe_rom_floor_y_q8,
         native_sm64_probe_rom_normal_y_q14,
         native_sm64_probe_rom_walk_speed_q12);
+#endif
+#ifdef SM50_CANONICAL_PROBE
+    int canonical_probe_ok = native_sm64_canonical_probe();
+    DBG("SM64 canonical %s floor_y_q8=%d ny_q14=%d walk=%d",
+        canonical_probe_ok ? "PASS" : "FAIL",
+        native_sm64_canonical_floor_y_q8,
+        native_sm64_canonical_floor_ny_q14,
+        native_sm64_canonical_speed_q12);
 #endif
     DBG("level loaded: %d chunks %d objs", gLevel.n_chunks, gLevel.n_objs);
     int last = RTC_GetTicks();

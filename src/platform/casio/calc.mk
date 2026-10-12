@@ -25,6 +25,18 @@ CALC_PS1_OBJECTS := $(CALC_DIR)/native/mario_actions_moving.c.o \
 	$(CALC_DIR)/native/native_sm64_movement_probe.c.o
 CALC_NATIVE_BRIDGE := $(CALC_DIR)/native/native_sm64_collision_bridge.c.o
 endif
+# Optional probe against the canonical CC0 decompilation checkout.
+CANONICAL_SM64 ?= deps/n64decomp-sm64
+ifeq ($(SM50_CANONICAL_PROBE),1)
+CALC_CANONICAL_CFLAGS := -m4-nofpu -mb -O2 -ffreestanding -fno-builtin -fno-pic \
+	-ffunction-sections -fdata-sections -std=gnu2x -DNON_MATCHING=1 -DAVOID_UB=1 -D_LANGUAGE_C -DM_PI=3.14159265358979323846 \
+	-Dapproach_s32=sm64_approach_s32 \
+	-I$(CANONICAL_SM64)/include -I$(CANONICAL_SM64)/src -I$(CANONICAL_SM64) -I$(CANONICAL_SM64)/pc
+CALC_CANONICAL_OBJECTS := $(CALC_DIR)/canonical/mario_actions_moving.c.o \
+	$(CALC_DIR)/canonical/math_util.c.o $(CALC_DIR)/canonical/native_sm64_canonical_probe.c.o
+CALC_NATIVE_BRIDGE := $(CALC_DIR)/native/native_sm64_collision_bridge.c.o
+CALC_NATIVE_LIBS := -lm
+endif
 # CALC_EMBED=1 links content/sm50.pack into the add-in (test builds); otherwise the
 # data pack is appended at install time by tools/build-g3a.py.
 CALC_EMBED ?= 0
@@ -37,10 +49,10 @@ endif
 
 calc: $(CALC_DIR)/$(CALC_NAME).g3a
 
-$(CALC_DIR)/$(CALC_NAME).elf: $(CALC_SRC) $(CALC_ASM) $(CALC_PS1_OBJECTS) $(CALC_NATIVE_BRIDGE) src/platform/casio/pack.S src/platform/casio/prizm.ld content/sm50.pack src/engine/*.h
+$(CALC_DIR)/$(CALC_NAME).elf: $(CALC_SRC) $(CALC_ASM) $(CALC_PS1_OBJECTS) $(CALC_CANONICAL_OBJECTS) $(CALC_NATIVE_BRIDGE) src/platform/casio/pack.S src/platform/casio/prizm.ld content/sm50.pack src/engine/*.h
 	@mkdir -p $(CALC_DIR)
 	$(SH_CC) $(CALC_CFLAGS) -T src/platform/casio/prizm.ld -Wl,--gc-sections -Wl,-Map,$(CALC_DIR)/$(CALC_NAME).map \
-		-DSM50_PACK_PATH='"content/sm50.pack"' -o $@ $(CALC_ASM) $(CALC_PACK_OBJ) $(CALC_SRC) $(CALC_PS1_OBJECTS) $(CALC_NATIVE_BRIDGE) -lgcc
+		-DSM50_PACK_PATH='"content/sm50.pack"' -o $@ $(CALC_ASM) $(CALC_PACK_OBJ) $(CALC_SRC) $(CALC_PS1_OBJECTS) $(CALC_CANONICAL_OBJECTS) $(CALC_NATIVE_BRIDGE) -lgcc $(CALC_NATIVE_LIBS)
 
 $(CALC_DIR)/native/mario_actions_moving.c.o: $(PS1_PORT)/src/game/mario_actions_moving.c
 	@mkdir -p $(CALC_DIR)/native
@@ -63,6 +75,15 @@ $(CALC_DIR)/native/native_sm64_movement_probe.c.o: tests/native_sm64_movement_pr
 $(CALC_DIR)/native/native_sm64_collision_bridge.c.o: src/platform/casio/native_sm64_collision_bridge.c src/engine/world.h
 	@mkdir -p $(CALC_DIR)/native
 	$(SH_CC) $(CALC_CFLAGS) -c $< -o $@
+$(CALC_DIR)/canonical/mario_actions_moving.c.o: $(CANONICAL_SM64)/src/game/mario_actions_moving.c
+	@mkdir -p $(CALC_DIR)/canonical
+	$(SH_CC) $(CALC_CANONICAL_CFLAGS) -c $< -o $@
+$(CALC_DIR)/canonical/math_util.c.o: $(CANONICAL_SM64)/src/engine/math_util.c
+	@mkdir -p $(CALC_DIR)/canonical
+	$(SH_CC) $(CALC_CANONICAL_CFLAGS) -c $< -o $@
+$(CALC_DIR)/canonical/native_sm64_canonical_probe.c.o: tests/native_sm64_canonical_probe.c
+	@mkdir -p $(CALC_DIR)/canonical
+	$(SH_CC) $(CALC_CANONICAL_CFLAGS) -c $< -o $@
 
 $(CALC_DIR)/$(CALC_NAME).bin: $(CALC_DIR)/$(CALC_NAME).elf
 	$(SH_OBJCOPY) -O binary -R .bss $< $@

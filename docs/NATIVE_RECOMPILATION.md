@@ -20,12 +20,20 @@ results establish feasibility of reuse, not a ready-made memory/performance
 solution.
 
 The source checkout at `../psx2` has no root license file and contains local
-uncommitted renderer/build changes. The canonical decompilation repository
-does identify its own license as CC0. Keep the PS1 tree as a local reference;
-only our small SH4 compatibility layer and build experiment are committed here.
-The full game port should be based on the canonical decompilation with clear
-provenance, using PS1-specific changes as technical references where their
-status permits.
+uncommitted renderer/build changes. Keep it as a local reference. The canonical
+decompilation is pinned as the `deps/n64decomp-sm64` submodule at commit
+`9921382a68bb0c865e5e45eb594d9c64db59b1af`; that repository identifies its
+license as CC0. This is the selected source base. The PS1 port remains useful
+for studying its Q12 math, asset compression and renderer adaptations, but its
+different data layouts and platform code should not be the foundation for the
+calculator's game-logic build.
+
+`libsm64` is another CC0 derivative with a clean external API, but its stated
+scope is Mario movement and rendering as a library. It does not provide the
+full area scripts, object behavior execution, star progression or original
+game loop needed by this project, so importing it alone would miss the main
+goal. Reusing canonical decomp source gives us those systems as they are
+ported, while the SM50 renderer remains the graphics backend.
 
 ## Calculator budgets measured in this checkout
 
@@ -52,34 +60,36 @@ consume most of the safe static allocation.
 
 ## Measured SM64 state and collision pools
 
-Cross-compiling the PS1 port's `struct Object` for SH4 gives 548 bytes. Its
-default 200-entry object pool therefore consumes 109,600 bytes of static RAM;
-64 entries consume 35,072 bytes and save 74,528 bytes. This is a level/gameplay
-tradeoff, not a free optimization: retain all important actors and prioritize
-discarding effects or other unimportant objects when the pool is full.
+Cross-compiling canonical `struct MarioState`, `Surface`, and `Object` for SH4
+gives 200, 48, and 608 bytes respectively. The 200-entry canonical object pool
+would consume 121,600 bytes of static RAM; 64 entries consume 38,912 bytes and
+save 82,688 bytes. This is a level/gameplay tradeoff, not a free optimization:
+retain important actors and prioritize discarding effects or unimportant
+objects when the pool is full. The PS1 fork compresses these layouts; its
+smaller `Object` (548 B) and `Surface` (40 B) sizes must not be used to budget
+the canonical build.
 
 The stock surface loader reserves 6,000 eight-byte `SurfaceNode`s and 2,300
-40-byte `Surface`s, totaling 140,000 bytes per level. The new
+48-byte canonical `Surface`s, totaling 158,400 bytes per level. The new
 `tools/analyze_sm64_ram.py` applies the original game's 16-by-16 partition and
 50-unit cell-boundary rules to the ROM-derived Battlefield collision stream.
 It reports 1,060 surfaces, 5,340 cell links, 256 occupied cells, and a maximum
-of 99 links in one cell. Exact-sized arrays therefore use 85,120 bytes,
-54,880 bytes less than the stock reservations. Run it against a generated pack:
+of 99 links in one cell. Exact-sized canonical arrays use 93,600 bytes,
+64,800 bytes less than the stock reservations. Run it against a generated pack:
 
 ```sh
 python3 tools/analyze_sm64_ram.py build/native-sm64-probe/bob.pack
 ```
 
-The PS1 port's two global surface partitions add 12,288 bytes of BSS. Combining
-those partitions, the current native probe's 203,680-byte static footprint,
-and a 64-object pool would use about 251 KiB of the 320 KiB static allowance,
-leaving roughly 75 KiB for Mario state, gameplay globals and other native
-tables. Level-sized surfaces should be allocated from the game heap after its
-real capacity is confirmed; do not include them in that static subtotal. This
-is a viable budget for a first level, but it still needs validation against the
-complete port and physical hardware. The link arrays need headroom for dynamic
-surfaces and any alternate levels, so 5,340 is a measured lower bound for the
-current static Battlefield collision only.
+The two global surface partitions add 12,288 bytes of BSS. The canonical probe
+currently uses 201,584 bytes of static data+BSS. Combining those partitions,
+the probe, and a 64-object pool would use about 253 KiB of the 320 KiB static
+allowance, leaving roughly 73 KiB for remaining gameplay globals and native
+tables. Level-sized surfaces would use 93,600 bytes from the separate game
+heap; its real capacity still needs measurement on hardware. This is viable
+for a first level, but must be rechecked against the complete port. The link
+arrays also need headroom for dynamic surfaces and alternate levels, so 5,340
+is the measured Battlefield static-collision count only.
 
 ## SH4 experiment
 
@@ -109,6 +119,14 @@ Build and run this ROM-local experiment with:
 
 ```sh
 python3 tools/build_native_probe.py --rom "/path/to/your/SM64 ROM.z64"
+```
+
+To build and run the canonical decompilation's float-based walking-speed
+routine instead of the PS1 fork's Q12 port, initialize the submodule and use:
+
+```sh
+git submodule update --init deps/n64decomp-sm64
+python3 tools/build_native_probe.py --source canonical --rom "/path/to/your/SM64 ROM.z64"
 ```
 
 The ROM-derived pack, add-in and logs are written under ignored `build/`.
