@@ -23,7 +23,15 @@
   Battlefield terrain estimated about 59 FPS from instruction counts; a
   36-frame summit view with the boss estimated about 43 FPS. This is **not a measured
   frame rate on the physical calculator**.
-- The existing synthetic regression suite passes 19/19 groups. Its PNG check
+- The canonical SH4 probe now runs the decompilation's original star and
+  yellow/red coin behavior scripts against Battlefield ROM placements. The
+  emulator passes star collection, a ROM yellow-coin reward, and red-coin
+  trigger advancement. The red coin test can overlap placements, so it checks
+  the original reward/trigger and at least one despawn rather than assuming one
+  coin per tick. Eight-coin star spawning and renderer integration remain
+  unverified. A two-frame emulator run estimated 54 FPS after startup; this is
+  instruction-count math, not a calculator measurement.
+- The existing synthetic regression suite passes 20/20 groups. Its PNG check
   now uses the Python standard library, so Pillow is unnecessary.
 
 Run `SM64_ROM=/path/to/rom SM50EMU=/path/to/sm50emu make test-rom` for the
@@ -156,7 +164,13 @@ renderer-facing object list, and Mario's native coin total is published to
 the HUD state. A startup regression places Mario on the first actual
 ROM-derived coin and verifies the original hitbox, interaction dispatcher,
 `numCoins` increment and coin deletion. The calculator emulator logs
-`SM64 canonical ROM yellow coin PASS` while loading the canonical ROM pack.
+`SM64 canonical ROM yellow coin PASS` and
+`SM64 canonical ROM red coin PASS` while loading the canonical ROM pack. The
+red-coin check instantiates the original hidden-star trigger and the ROM's red
+coins, then verifies canonical Mario interaction increments the trigger and
+awards the original coin value. It does not yet exercise all eight coins or
+spawn/collect the resulting red-coin star. The calculator emulator estimates
+about 54 FPS after startup for this probe, based on instruction counts only.
 Golden-coin sparkle behavior is compiled, while audio remains absent. This
 code is currently built into the canonical probe variant; promoting the
 native object runtime into the default add-in and replacing remaining
@@ -173,7 +187,6 @@ not yet the original game loop: most level objects and behavior scripts,
 cutscene actions, complete level-script execution, original camera,
 save/progression and audio are still missing.
 The next integration step is to promote this canonical loop out of the probe
-build, instantiate the level-script `SOBJ` placements in the same object pool,
-and add original behavior paths such as red-coin progression and the Battlefield
-enemies. The existing ROM-backed renderer and flash-resident level data remain
-the platform backend.
+build, complete red-coin star progression, and add Battlefield enemy behaviors.
+The existing ROM-backed renderer and flash-resident level data remain the
+platform backend.

@@ -34,7 +34,7 @@ calc-canonical-probe:
 
 # Standalone hardware diagnostic. It does not change the game add-in.
 calc-memory-diagnostic:
-	$(MAKE) calc CALC_NAME=SM50MemoryDiagnostic SM50_MEMDIAG=1
+	$(MAKE) -B calc CALC_NAME=SM50MemoryDiagnostic SM50_MEMDIAG=1
 
 test: host content
 	python3 tests/run_tests.py

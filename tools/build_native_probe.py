@@ -72,6 +72,8 @@ def main():
                 raise SystemExit("canonical probe did not pass the original star-interaction dispatch")
             if args.source == "canonical" and "SM64 canonical ROM yellow coin PASS" not in result.stdout:
                 raise SystemExit("canonical probe did not collect a ROM-derived coin through original behavior logic")
+            if args.source == "canonical" and "SM64 canonical ROM red coin PASS" not in result.stdout:
+                raise SystemExit("canonical probe did not advance the ROM red-coin trigger through original behavior logic")
         else:
             print(f"Emulator not found at {emulator}; add-in was built but not run.")
 

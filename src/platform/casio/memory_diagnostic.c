@@ -71,6 +71,10 @@ static int probe_extension(u32 *tested)
 {
     volatile u32 *base = (volatile u32 *)EXT_BEGIN;
     *tested = 0;
+    /* Do not write into a region that appears to contain live OS data. */
+    for (u32 off = 0; off < EXT_END - EXT_BEGIN; off += sizeof(u32)) {
+        if (*(volatile u32 *)(EXT_BEGIN + off) != 0) return 1;
+    }
     for (u32 off = EXT_STEP; off < EXT_END - EXT_BEGIN; off += EXT_STEP) {
         volatile u32 *q = (volatile u32 *)(EXT_BEGIN + off);
         u32 old_base = *base, old_target = *q;
@@ -112,7 +116,7 @@ int main(void)
 
     int key = wait_for_key();
     if (key != 47) {
-        screen("Sampling 6 MiB RAM", "Writes restored at once", "Checking data/address lines", "Please wait...");
+        screen("Read-checking 6 MiB", "Writes only if all zero", "Checking data/address lines", "Please wait...");
         u32 tested = 0;
         int result = probe_extension(&tested);
         char first[32], second[32];
@@ -120,6 +124,8 @@ int main(void)
             snprintf(first, sizeof first, "6 MiB sample PASS");
             snprintf(second, sizeof second, "%u pairs restored", tested);
             screen(first, second, "RAM data/address OK", "Any key: return to menu");
+        } else if (result == 1) {
+            screen("RAM region not zero", "Write test skipped", "No memory changed", "Any key: return to menu");
         } else {
             snprintf(first, sizeof first, "RAM sample failed");
             snprintf(second, sizeof second, "after %u pairs", tested);

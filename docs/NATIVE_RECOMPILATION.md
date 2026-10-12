@@ -117,9 +117,9 @@ and the [developer discussion of the 8 MiB RAM map](https://www.cemetech.net/for
 
 `make calc-memory-diagnostic` builds a standalone `SM50MemoryDiagnostic.g3a`.
 It measures normal OS allocations in 4 KiB blocks, reads the CPG frequency
-register, and measures the framebuffer blit plus OS display call. F1 performs
-a read-only zero scan of `0x8c200000..0x8c7fffff`; it only proceeds to sparse
-write/read/restore samples if the whole range reads as zero. It never changes
+register, and reports no FPS benchmark. Any key starts a read-only zero scan of
+`0x8c200000..0x8c7fffff`; it only proceeds to sparse write/read/restore samples
+if the whole range reads as zero. EXIT skips the RAM test. It never changes
 clock registers. This is a cautious first probe, not proof that every byte is
 available or safe across OS versions. Back up the calculator before running
 it. It has been built and run through the software emulator's normal path;

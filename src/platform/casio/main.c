@@ -65,6 +65,8 @@ extern volatile s32 native_sm64_canonical_star_debug;
 extern volatile s32 native_sm64_canonical_star_hitbox_debug;
 extern volatile s32 native_sm64_canonical_coins;
 extern volatile s32 native_sm64_canonical_yellow_coin_check;
+extern volatile s32 native_sm64_canonical_red_coin_check;
+extern volatile s32 native_sm64_canonical_red_coin_debug;
 #endif
 extern const u8 rom_image_end[];
 
@@ -253,6 +255,9 @@ int main(void) {
         native_sm64_canonical_star_interaction_ok ? "PASS" : "FAIL");
     DBG("SM64 canonical ROM yellow coin %s",
         native_sm64_canonical_yellow_coin_check ? "PASS" : "FAIL");
+    DBG("SM64 canonical ROM red coin %s",
+        native_sm64_canonical_red_coin_check ? "PASS" : "FAIL");
+    DBG("red coin state=0x%08x", native_sm64_canonical_red_coin_debug);
     DBG("star collision debug=%d hitboxes=%d saved=%d",
         native_sm64_canonical_star_debug,
         native_sm64_canonical_star_hitbox_debug,

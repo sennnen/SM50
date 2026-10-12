@@ -166,7 +166,7 @@ $(CALC_DIR)/canonical/obj_behaviors.c.o: $(CANONICAL_SM64)/src/game/obj_behavior
 	@mkdir -p $(CALC_DIR)/canonical
 	$(SH_CC) $(CALC_CANONICAL_CFLAGS) -c $< -o $@
 $(CALC_DIR)/canonical/behavior_subset.c: $(CANONICAL_SM64)/data/behavior_data.c tools/gen_native_behavior_subset.py
-	python3 tools/gen_native_behavior_subset.py --source $(CANONICAL_SM64) --output $@ bhvStar bhvYellowCoin bhvGoldenCoinSparkles bhvCoinSparkles
+	python3 tools/gen_native_behavior_subset.py --source $(CANONICAL_SM64) --output $@ bhvStar bhvStarSpawnCoordinates bhvSparkleSpawn bhvYellowCoin bhvGoldenCoinSparkles bhvCoinSparkles bhvRedCoin bhvHiddenRedCoinStar bhvRedCoinStarMarker bhvBowserCourseRedCoinStar bhvOrangeNumber
 $(CALC_DIR)/canonical/behavior_subset.c.o: $(CALC_DIR)/canonical/behavior_subset.c
 	$(SH_CC) $(CALC_CANONICAL_CFLAGS) -c $< -o $@
 $(CALC_DIR)/canonical/native_sm64_canonical_probe.c.o: tests/native_sm64_canonical_probe.c
