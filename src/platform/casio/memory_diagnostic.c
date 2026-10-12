@@ -5,19 +5,15 @@
 #include <stdio.h>
 #include <string.h>
 
-void *GetVRAMAddress(void);
 void Bdisp_PutDisp_DD(void);
 void Bdisp_AllClr_VRAM(void);
 void Bdisp_EnableColor(int n);
 void EnableStatusArea(int opt);
 void PrintXY(int x, int y, char *message, int mode, int color);
-int RTC_GetTicks(void);
 int GetKey(int *key);
 void *sys_malloc(unsigned int size);
 void sys_free(void *ptr);
 
-#define LCD_W SM50_OS_VRAM_W
-#define LCD_H SM50_OS_VRAM_H
 #define EXT_BEGIN 0x8c200000u
 #define EXT_END   0x8c800000u
 #define EXT_STEP  64u
@@ -92,23 +88,6 @@ static int probe_extension(u32 *tested)
     return 0;
 }
 
-static unsigned benchmark_present(void)
-{
-    volatile u16 *vram = (volatile u16 *)GetVRAMAddress();
-    for (int y = 0; y < LCD_H; y++) {
-        for (int x = 0; x < LCD_W; x++) {
-            vram[y * LCD_W + x] = ((x / 32 + y / 24) & 1) ? 0x07e0 : 0x001f;
-        }
-    }
-    int start = RTC_GetTicks();
-    unsigned frames = 0;
-    do {
-        Bdisp_PutDisp_DD();
-        ++frames;
-    } while ((unsigned)(RTC_GetTicks() - start) < 128u);
-    return frames;
-}
-
 static int wait_for_key(void)
 {
     int key = 0;
@@ -140,7 +119,7 @@ int main(void)
         if (result == 0) {
             snprintf(first, sizeof first, "6 MiB sample PASS");
             snprintf(second, sizeof second, "%u pairs restored", tested);
-            screen(first, second, "RAM data/address OK", "Any key: LCD test");
+            screen(first, second, "RAM data/address OK", "Any key: return to menu");
         } else {
             snprintf(first, sizeof first, "RAM sample failed");
             snprintf(second, sizeof second, "after %u pairs", tested);
@@ -149,11 +128,9 @@ int main(void)
         wait_for_key();
     }
 
-    /* EXIT skips straight to this benchmark; probe results wait for a key. */
-    unsigned fps = benchmark_present();
-    char result[32];
-    snprintf(result, sizeof result, "LCD transfer %u FPS", fps);
-    screen(line, heap, result, "Any key: return to menu");
-    wait_for_key();
+    else {
+        screen(line, heap, "RAM test skipped", "Any key: return to menu");
+        wait_for_key();
+    }
     return 0;
 }
