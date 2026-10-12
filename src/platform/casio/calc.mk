@@ -153,5 +153,5 @@ $(CALC_DIR)/$(CALC_NAME).bin: $(CALC_DIR)/$(CALC_NAME).elf
 	$(SH_OBJCOPY) -O binary -R .bss $< $@
 
 $(CALC_DIR)/$(CALC_NAME).g3a: $(CALC_DIR)/$(CALC_NAME).bin tools/mkg3a.py
-	python3 tools/mkg3a.py -n "basic:SM50" $(if $(wildcard assets/icon_uns.png),-i uns:assets/icon_uns.png -i sel:assets/icon_sel.png) $< $@
+	python3 tools/mkg3a.py -n "basic:$(if $(filter 1,$(SM50_MEMDIAG)),SM50Diag,SM50)" $(if $(wildcard assets/icon_uns.png),-i uns:assets/icon_uns.png -i sel:assets/icon_sel.png) $< $@
 	python3 tools/g3a_check.py $@ >/dev/null
