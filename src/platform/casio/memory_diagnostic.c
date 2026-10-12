@@ -123,7 +123,7 @@ int main(void)
     snprintf(line, sizeof line, "FRQCR read: %08x", frqcr);
     char heap[32];
     snprintf(heap, sizeof heap, "OS malloc arena: %u KB tested", os_heap / 1024);
-    screen(line, heap, "F1: test extended SDRAM", "EXIT: benchmark LCD then quit");
+    screen(line, heap, "F1: test extended SDRAM", "Back up first; EXIT to leave");
 
     int key = 0;
     GetKey(&key);
