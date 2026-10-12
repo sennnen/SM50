@@ -151,7 +151,7 @@ To exercise the original jump/landing slice with scripted calculator input:
 
 ```sh
 python3 tools/build_native_probe.py --source canonical --frames 120 \
-  --keys tests/inputs/canonical-jump.keys --rom "/path/to/your/SM64 ROM.z64"
+  --keys tests/inputs/canonical-movement.keys --rom "/path/to/your/SM64 ROM.z64"
 ```
 
 The ROM-derived pack, add-in and logs are written under ignored `build/`.
