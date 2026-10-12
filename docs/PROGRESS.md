@@ -1,5 +1,24 @@
 # SM64 port progress — 12 October 2026
 
+## Native runtime build — 12 October 2026
+
+- Added a production startup path that initializes Mario at the ROM's actual
+  Battlefield warp and builds the ROM-derived coin and star behaviors. It no
+  longer runs the long deterministic movement/collection self-test sequence
+  before gameplay; that remains in the separate canonical probe build.
+- The normal 30 Hz game loop sends calculator direction/jump/action input to
+  the canonical SM64 action dispatcher. The existing renderer receives the
+  resulting position, yaw, speed, grounded state and mapped ROM animation.
+- `tools/build_sm64_game.py` now builds the canonical SH4 runtime, extracts
+  Battlefield data from a local ROM, packages an `SM50.g3a`, validates its
+  container, and can run it in the headless calculator emulator. ROM data and
+  generated packs stay under ignored `build/`.
+- The ROM-backed production add-in ran for 50 emulator frames with scripted
+  controller input. Its instruction-count estimate was 51.5 FPS after startup
+  and its 384x216 OS VRAM guard remained intact. This is emulator evidence,
+  not a physical-calculator frame-rate measurement. The add-in was copied to
+  the connected calculator for user testing.
+
 ## Verified with the user's canonical US ROM
 
 - SHA-1 and CIC-6102 header CRC match the canonical release.
@@ -47,9 +66,10 @@ only under ignored `build/`.
 
 ## Not complete
 
-- The engine does not reproduce Mario's full movement state machine. Movement
-  and camera are approximations, and the native animation poses need further
-  visual tuning on the calculator screen.
+- Mario's canonical action routines now handle movement on the calculator
+  build, but sound, original camera behavior, cutscenes and some platform
+  services are still replaced or absent. Native animation state maps onto
+  the extracted low-poly ROM clips and needs visual tuning on hardware.
 - Most object behaviours are not implemented: other enemies, moving platforms,
   cannons, switches and warps. The King Bob-omb encounter has only a simplified
   grab/throw state machine and selected static ROM meshes, without native animations or

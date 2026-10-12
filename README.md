@@ -1,11 +1,11 @@
 # Super Mario 64 on the fx-CG50: native port in progress
 
-The project is shifting from a ROM-rendered preview to a native recompilation
-of Super Mario 64's original gameplay code. The existing renderer and ROM
-pipeline remain in place as candidate backends. A SH4 experiment now compiles
-and executes the original walking, jump, freefall and landing action routines
-against ROM-derived Bob-omb Battlefield geometry. This is a narrow porting
-probe, **not the full game**; see [docs/PROGRESS.md](docs/PROGRESS.md) and
+SM50 now has a native SH4 game build that runs the canonical SM64 Mario action
+loop against ROM-derived Bob-omb Battlefield collision and placements. The
+existing renderer consumes that state. The current port is playable in this
+one level, but it is still a partial port: most enemies, level transitions,
+the original camera, audio and save progression are not connected. See
+[docs/PROGRESS.md](docs/PROGRESS.md) and
 [docs/NATIVE_RECOMPILATION.md](docs/NATIVE_RECOMPILATION.md).
 
 The existing preview still renders actual Battlefield geometry, Mario meshes
@@ -16,22 +16,24 @@ No ROM or extracted Nintendo assets are in this repository. The canonical US
 ROM (SHA-1 `9bef1128717f958171a4afac3ed78ee2bb4e86ce`) is needed locally.
 The converter validates this hash before it creates a Battlefield pack.
 
-## Build the current Battlefield preview on macOS
+## Build the current native Battlefield game
 
-Connect the calculator in USB Flash mode, then run:
-
-```sh
-./install-sm50.command "/path/to/your/sm64.us.z64"
-```
-
-The installer uses `manifests/sm64-us-bob.json`, Python 3 and the committed
-prebuilt engine. It creates `build/SM50.g3a` and copies it to the calculator.
-It does not require a development toolchain. To build without copying, run:
+With the SH4 toolchain and canonical decomp checkout available, run:
 
 ```sh
-python3 tools/n64pack.py manifests/sm64-us-bob.json --rom "/path/to/your/sm64.us.z64" -o build/us-bob.pack
-python3 tools/build-g3a.py dist/SM50-engine.bin build/us-bob.pack build/SM50.g3a
+python3 tools/build_sm64_game.py --rom "/path/to/your/sm64.us.z64"
 ```
+
+This creates `build/native-sm64-game/SM50.g3a` from your local ROM. To also
+run it in the headless calculator emulator:
+
+```sh
+python3 tools/build_sm64_game.py --rom "/path/to/your/sm64.us.z64" \
+  --emulator "/path/to/sm50emu" --frames 100
+```
+
+Copy the resulting `.g3a` to the calculator's storage while it is in USB Flash
+mode. The older `install-sm50.command` still builds the renderer-only preview.
 
 Generated files stay in ignored `build/`. Never add your ROM, packs, screenshots
 of ROM content or generated add-ins to Git.

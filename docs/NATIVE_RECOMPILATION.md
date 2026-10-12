@@ -221,30 +221,28 @@ mapping from discarding data needed by the native object runtime.
 The canonical `data/behavior_data.c` compiles for SH4 to about 22 KiB of
 read-only bytecode, but it does not link in isolation: selected Battlefield
 scripts carry relocations to native object callbacks, level collision symbols,
-and animation data from the original engine. Thus resolving the ROM's segment
-addresses to C array names is insufficient. The next object-runtime slice must
-port or adapt the interpreter, initialize canonical `Object` state, and connect
-the relevant native callbacks and asset references as a coherent subset before
-any of those scripts can safely execute.
+and animation data from the original engine. The game build now compiles a
+coherent subset of the behavior interpreter and coin/star scripts, with their
+required callbacks and collision bridge. Other behavior scripts still need
+their own dependency subsets before they can be enabled safely.
 
 ## Next integration boundary
 
-The experiment now runs canonical stationary, moving, airborne, submerged,
-automatic and object action dispatch with the decompilation's floor, wall and
-ceiling queries against ROM collision. Mario's native tick calls the original
-`mario_process_interactions()` dispatcher; a startup self-check collides with
-the actual ROM-placed Battlefield star, exercises the canonical save-bit and
-star-dance path, then verifies the original star deletion behavior. This
-proves the handler table can run natively with the current adapters, but the
-other 20 level-script placements and macro objects are not yet initialized in
-the canonical pool. Unsupported cap, warp, save and sound dependencies use
-backend stubs, and the fatal `abort()` path remains guarded. The cutscene action
-group, general object behaviors, level scripts, original camera, audio and
-persistent save progression remain unconnected. The next port layer should
-initialize retained Battlefield spawns in the bounded canonical pool, run their
-canonical behavior scripts, and route collision results through the original
-dispatcher. Keep rendering
-as a backend that consumes original game state and ROM geometry.
+The production game build starts canonical Mario state at the ROM's spawn warp
+and runs stationary, moving, airborne, submerged, automatic and object action
+groups at 30 Hz, with the decompilation's floor, wall and ceiling queries
+against ROM collision. Mario's tick calls the original
+`mario_process_interactions()` dispatcher. A separate emulator self-test
+collides with the actual ROM-placed Battlefield star, exercises the canonical
+save-bit and star-dance path, then verifies the original deletion behavior; it
+also checks ROM-derived yellow/red coin rewards and red-star progression. The
+normal build skips those self-tests at launch. Remaining Battlefield
+placements and macro objects are not yet initialized in the canonical pool.
+Unsupported cap, warp, save and sound dependencies use backend stubs, and the
+fatal `abort()` path remains guarded. Cutscene behavior, general enemies and
+objects, original camera, audio, and persistent save progression remain
+unconnected. Next, add coherent native behavior subsets for Battlefield enemies
+and moving objects, then route their renderer state through the backend.
 
 ## PS1 port comparison and object-runtime link test
 

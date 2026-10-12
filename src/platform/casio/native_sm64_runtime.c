@@ -1,4 +1,6 @@
-/* Executable probe against the CC0 canonical SM64 decompilation. */
+/* Native SH4 runtime adapted from the CC0 canonical SM64 decompilation.
+ * The self-test entry point at the bottom is used only by emulator probe
+ * builds; normal game builds call native_sm64_canonical_init(). */
 #include <PR/ultratypes.h>
 #include <string.h>
 #include "sm64.h"
@@ -654,6 +656,25 @@ volatile s32 native_sm64_canonical_pos_x_q8;
 volatile s32 native_sm64_canonical_pos_y_q8;
 volatile s32 native_sm64_canonical_pos_z_q8;
 volatile u16 native_sm64_canonical_yaw;
+
+/* Normal game startup: load the ROM's collision, spawn Mario at the level
+ * warp, and create the actual ROM-derived coin/star behaviors. Keep the
+ * deterministic interaction checks in native_sm64_canonical_probe() so a
+ * calculator launch does not spend seconds replaying test scenarios. */
+int native_sm64_canonical_init(void) {
+    s32 spawn[4];
+    const u8 *collision = NULL;
+    u32 collisionSize = 0;
+    native_sm64_canonical_runtime_ready = 0;
+    if (!sm50_native_rom_data(spawn, &collision, &collisionSize) ||
+        !load_rom_collision(collision, collisionSize)) return 0;
+    if (!initialize_native_mario(spawn) ||
+        !initialize_native_yellow_coins() ||
+        !initialize_native_red_coins()) return 0;
+    native_sm64_canonical_coins = sNativeMario.numCoins;
+    native_sm64_canonical_runtime_ready = 1;
+    return 1;
+}
 
 int native_sm64_canonical_probe(void) {
     s32 spawn[4];

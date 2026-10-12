@@ -55,7 +55,7 @@ CALC_CANONICAL_OBJECTS := $(CALC_DIR)/canonical/mario_actions_moving.c.o \
 	$(CALC_DIR)/canonical/object_helpers.c.o \
 	$(CALC_DIR)/canonical/obj_behaviors.c.o \
 	$(CALC_DIR)/canonical/behavior_subset.c.o \
-	$(CALC_DIR)/canonical/native_sm64_canonical_probe.c.o
+	$(CALC_DIR)/canonical/native_sm64_runtime.c.o
 CALC_NATIVE_BRIDGE := $(CALC_DIR)/native/native_sm64_collision_bridge.c.o
 CALC_NATIVE_LIBS := -lm
 endif
@@ -169,7 +169,7 @@ $(CALC_DIR)/canonical/behavior_subset.c: $(CANONICAL_SM64)/data/behavior_data.c 
 	python3 tools/gen_native_behavior_subset.py --source $(CANONICAL_SM64) --output $@ bhvStar bhvStarSpawnCoordinates bhvSparkleSpawn bhvYellowCoin bhvGoldenCoinSparkles bhvCoinSparkles bhvRedCoin bhvHiddenRedCoinStar bhvRedCoinStarMarker bhvBowserCourseRedCoinStar bhvOrangeNumber
 $(CALC_DIR)/canonical/behavior_subset.c.o: $(CALC_DIR)/canonical/behavior_subset.c
 	$(SH_CC) $(CALC_CANONICAL_CFLAGS) -c $< -o $@
-$(CALC_DIR)/canonical/native_sm64_canonical_probe.c.o: tests/native_sm64_canonical_probe.c
+$(CALC_DIR)/canonical/native_sm64_runtime.c.o: src/platform/casio/native_sm64_runtime.c
 	@mkdir -p $(CALC_DIR)/canonical
 	$(SH_CC) $(CALC_CANONICAL_CFLAGS) -c $< -o $@
 

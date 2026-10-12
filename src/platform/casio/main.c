@@ -46,6 +46,7 @@ extern volatile s32 native_sm64_probe_rom_walk_speed_q12;
 #endif
 #ifdef SM50_CANONICAL_PROBE
 extern int native_sm64_canonical_probe(void);
+extern int native_sm64_canonical_init(void);
 extern volatile s32 native_sm64_canonical_floor_y_q8;
 extern volatile s32 native_sm64_canonical_floor_ny_q14;
 extern volatile s32 native_sm64_canonical_speed_q12;
@@ -243,6 +244,7 @@ int main(void) {
         native_sm64_probe_rom_walk_speed_q12);
 #endif
 #ifdef SM50_CANONICAL_PROBE
+#ifdef SM50_EMU_DEBUG
     int canonical_probe_ok = native_sm64_canonical_probe();
     DBG("SM64 canonical %s floor_y_q8=%d ny_q14=%d walk=%d",
         canonical_probe_ok ? "PASS" : "FAIL",
@@ -268,16 +270,21 @@ int main(void) {
         native_sm64_canonical_star_debug,
         native_sm64_canonical_star_hitbox_debug,
         native_sm64_canonical_star_collected);
-    if (canonical_probe_ok) {
-        /* Publish canonical movement state to the existing renderer. */
-        sm50_native_publish_mario(native_sm64_canonical_pos_x_q8,
-                                  native_sm64_canonical_pos_y_q8,
-                                  native_sm64_canonical_pos_z_q8,
-                                  native_sm64_canonical_yaw,
-                                  0, 0,
-                                  native_sm64_canonical_pos_y_q8, 1, 0,
-                                  native_sm64_canonical_anim_index);
+#else
+    int canonical_probe_ok = native_sm64_canonical_init();
+#endif
+    if (!canonical_probe_ok) {
+        message("SM50: SM64 runtime failed", "ROM collision or spawn data unavailable");
+        int k; for (;;) GetKey(&k);
     }
+    /* Publish the actual canonical Mario spawn into the existing renderer. */
+    sm50_native_publish_mario(native_sm64_canonical_pos_x_q8,
+                              native_sm64_canonical_pos_y_q8,
+                              native_sm64_canonical_pos_z_q8,
+                              native_sm64_canonical_yaw,
+                              0, 0,
+                              native_sm64_canonical_pos_y_q8, 1, 0,
+                              native_sm64_canonical_anim_index);
 #endif
     DBG("level loaded: %d chunks %d objs %d SM64 placements", gLevel.n_chunks, gLevel.n_objs,
         gLevel.n_sm64_spawns);
