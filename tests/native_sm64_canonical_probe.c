@@ -40,6 +40,8 @@ extern s32 sm50_native_red_coin_count(void);
 extern s32 sm50_native_red_coin_at(s32 ordinal, s32 values[5]);
 extern s32 sm50_native_red_coin_star_spawn(s16 transform[6], u32 *params);
 extern void sm50_native_hide_red_coin(s32 index);
+extern s32 sm50_native_sync_red_star(s32 active, s32 x, s32 y, s32 z, u16 yaw);
+extern s32 sm50_native_red_star_visual_matches(s32 x, s32 y, s32 z);
 extern void update_walking_speed(struct MarioState *m);
 extern void update_mario_inputs(struct MarioState *m);
 extern s32 mario_execute_moving_action(struct MarioState *m);
@@ -552,6 +554,14 @@ static void update_native_level_objects(void) {
             !(coin->activeFlags & ACTIVE_FLAG_ACTIVE))
             sm50_native_hide_red_coin(sNativeRedCoinSource[i]);
     }
+    struct Object *redStar = find_native_behavior_object(bhvStarSpawnCoordinates);
+    if (redStar && (redStar->activeFlags & ACTIVE_FLAG_ACTIVE)) {
+        sm50_native_sync_red_star(1, (s32)redStar->oPosX, (s32)redStar->oPosY,
+                                  (s32)redStar->oPosZ,
+                                  (u16)redStar->oFaceAngleYaw);
+    } else {
+        sm50_native_sync_red_star(0, 0, 0, 0, 0);
+    }
     gCurrentObject = gMarioObject;
 }
 
@@ -797,7 +807,9 @@ int native_sm64_canonical_probe(void) {
             && spawnedRedStar->oBhvParams2ndByte == 1
             && spawnedRedStar->oHomeX == sNativeRedCoinStar->oPosX
             && spawnedRedStar->oHomeY == sNativeRedCoinStar->oPosY
-            && spawnedRedStar->oHomeZ == sNativeRedCoinStar->oPosZ;
+            && spawnedRedStar->oHomeZ == sNativeRedCoinStar->oPosZ
+            && sm50_native_red_star_visual_matches((s32)spawnedRedStar->oPosX,
+                (s32)spawnedRedStar->oPosY, (s32)spawnedRedStar->oPosZ);
     }
 
     sNativeObjectPoolInitialized = 0;
@@ -816,6 +828,7 @@ int native_sm64_canonical_probe(void) {
     sNativePreviousButtons = 0;
     gTimeStopState = 0;
     sNativeStarExitRequested = 0;
+    sm50_native_sync_red_star(0, 0, 0, 0, 0);
     if (!initialize_native_mario(spawn)) return 0;
     if (!initialize_native_yellow_coins()) return 0;
     if (!initialize_native_red_coins()) return 0;

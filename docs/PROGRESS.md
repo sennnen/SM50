@@ -28,11 +28,14 @@
   emulator passes star collection, a ROM yellow-coin reward, and red-coin
   trigger advancement. It also collects all eight red coins via canonical
   interaction dispatch and confirms the original red-coin star-spawn behavior
-  creates `bhvStarSpawnCoordinates` at the trigger's home position. The red
+  creates `bhvStarSpawnCoordinates` at the trigger's home position. Its live
+  position and yaw are mirrored into a renderer-facing slot using the ROM's
+  extracted star model. The red
   coin test can overlap placements, so its first reward check allows multiple
-  coins per tick. Full star animation, rendering and collection remain
-  unverified. A two-frame emulator run estimated 54 FPS after startup; this is
-  instruction-count math, not a calculator measurement.
+  coins per tick. The rendered spawn sequence and canonical star collection
+  still need an end-to-end gameplay check. A two-frame emulator run estimated
+  54 FPS after startup; this is instruction-count math, not a calculator
+  measurement.
 - The existing synthetic regression suite passes 20/20 groups. Its PNG check
   now uses the Python standard library, so Pillow is unnecessary.
 
@@ -173,9 +176,11 @@ coins, then verifies canonical Mario interaction increments the trigger and
 awards the original coin value. A follow-up check collects all eight ROM coins
 through the same dispatcher and confirms `bhvHiddenRedCoinStar` deactivates
 after spawning the original `bhvStarSpawnCoordinates` object at its configured
-home position. Star animation, visual rendering, and collection are not yet
-verified. The calculator emulator estimates about 54 FPS after startup for
-this probe, based on instruction counts only.
+home position. Its changing position and yaw are copied to an `OBJ_STAR` slot
+that the existing renderer draws with the ROM-extracted star model. End-to-end
+visual verification of the spawn sequence and collection are still pending.
+The calculator emulator estimates about 54 FPS after startup for this probe,
+based on instruction counts only.
 Golden-coin sparkle behavior is compiled, while audio remains absent. This
 code is currently built into the canonical probe variant; promoting the
 native object runtime into the default add-in and replacing remaining

@@ -1,5 +1,6 @@
 /* Adapt the ROM-derived SM50 collision query to an original SM64 Surface. */
 #include "../../engine/world.h"
+#include <string.h>
 
 int sm50_native_rom_floor(s32 values[4]) {
     s32 nx = 0, nz = 0, ny = 0;
@@ -106,4 +107,46 @@ int sm50_native_red_coin_star_spawn(s16 transform[6], u32 *params) {
 void sm50_native_hide_red_coin(s32 index) {
     if (index >= 0 && index < gLevel.n_objs && gLevel.objs[index].type == OBJ_RED_COIN)
         gLevel.objs[index].active = 0;
+}
+
+/* Reserve one renderer-facing slot for the star created by SM64's canonical
+ * red-coin behavior. A private state tag distinguishes it from ROM objects. */
+#define SM50_NATIVE_RED_STAR_TAG 0x534D3530
+
+s32 sm50_native_sync_red_star(s32 active, s32 x, s32 y, s32 z, u16 yaw) {
+    Obj *visual = NULL;
+    for (int i = 0; i < gLevel.n_objs; i++) {
+        if (gLevel.objs[i].state == SM50_NATIVE_RED_STAR_TAG) {
+            visual = &gLevel.objs[i];
+            break;
+        }
+    }
+    if (!active) {
+        if (visual) visual->active = 0;
+        return visual != NULL;
+    }
+    if (!visual) {
+        if (gLevel.n_objs >= MAX_OBJS) return 0;
+        visual = &gLevel.objs[gLevel.n_objs++];
+        memset(visual, 0, sizeof(*visual));
+        visual->type = OBJ_STAR;
+        visual->state = SM50_NATIVE_RED_STAR_TAG;
+    }
+    visual->type = OBJ_STAR;
+    visual->active = 1;
+    visual->x = x;
+    visual->y = y;
+    visual->z = z;
+    visual->yaw = yaw;
+    return 1;
+}
+
+s32 sm50_native_red_star_visual_matches(s32 x, s32 y, s32 z) {
+    for (int i = 0; i < gLevel.n_objs; i++) {
+        const Obj *visual = &gLevel.objs[i];
+        if (visual->state == SM50_NATIVE_RED_STAR_TAG)
+            return visual->active && visual->type == OBJ_STAR &&
+                visual->x == x && visual->y == y && visual->z == z;
+    }
+    return 0;
 }
