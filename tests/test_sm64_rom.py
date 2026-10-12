@@ -134,7 +134,7 @@ def main():
     print("PASS ROM-placed King Bob-omb can be grabbed, thrown and reveal his star")
 
     g3a = os.path.join(OUT, "SM64-BOB.g3a")
-    run(sys.executable, "tools/build-g3a.py", "dist/SM50-engine.bin", pack_path, g3a)
+    run(sys.executable, "tools/build-g3a.py", "build/calc/SM50.bin", pack_path, g3a)
     run(sys.executable, "tools/g3a_check.py", g3a)
     print("PASS calculator add-in container validates (%d bytes)" % os.path.getsize(g3a))
     emu = os.environ.get("SM50EMU")
@@ -142,6 +142,7 @@ def main():
         output = run(emu, "--keys", "tests/scripts/emu_play.txt", "--outdir", OUT,
                      "--shot-at", "35", "--max-frames", "40", "--max-wall", "120", g3a)
         assert "frames presented  : 40" in output
+        assert "OS VRAM guard     : 0/4096 guard words corrupted (384x216 surface)" in output
         print("PASS calculator emulator renders 40 frames of ROM-derived content")
 
 

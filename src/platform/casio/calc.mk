@@ -51,6 +51,7 @@ CALC_CANONICAL_OBJECTS := $(CALC_DIR)/canonical/mario_actions_moving.c.o \
 	$(CALC_DIR)/canonical/math_util.c.o $(CALC_DIR)/canonical/surface_collision.c.o \
 	$(CALC_DIR)/canonical/spawn_object.c.o \
 	$(CALC_DIR)/canonical/behavior_script.c.o \
+	$(CALC_DIR)/canonical/native_sm64_coin_actions.c.o \
 	$(CALC_DIR)/canonical/object_helpers.c.o \
 	$(CALC_DIR)/canonical/obj_behaviors.c.o \
 	$(CALC_DIR)/canonical/behavior_subset.c.o \
@@ -69,6 +70,13 @@ CALC_PACK_OBJ :=
 endif
 
 calc: $(CALC_DIR)/$(CALC_NAME).g3a
+ifeq ($(CALC_NAME),SM50)
+calc: dist/SM50-engine.bin
+endif
+
+dist/SM50-engine.bin: $(CALC_DIR)/SM50.bin
+	@mkdir -p dist
+	cp $< $@
 
 $(CALC_DIR)/$(CALC_NAME).elf: $(CALC_SRC) $(CALC_ASM) $(CALC_PS1_OBJECTS) $(CALC_CANONICAL_OBJECTS) $(CALC_NATIVE_BRIDGE) src/platform/casio/pack.S src/platform/casio/prizm.ld src/platform/casio/display_layout.h $(if $(filter 1,$(SM50_MEMDIAG)),,content/sm50.pack) src/engine/*.h
 	@mkdir -p $(CALC_DIR)
@@ -148,6 +156,9 @@ $(CALC_DIR)/canonical/spawn_object.c.o: $(CANONICAL_SM64)/src/game/spawn_object.
 $(CALC_DIR)/canonical/behavior_script.c.o: $(CANONICAL_SM64)/src/engine/behavior_script.c
 	@mkdir -p $(CALC_DIR)/canonical
 	$(SH_CC) $(CALC_CANONICAL_CFLAGS) -c $< -o $@
+$(CALC_DIR)/canonical/native_sm64_coin_actions.c.o: src/platform/casio/native_sm64_coin_actions.c $(CANONICAL_SM64)/src/game/behaviors/coin.inc.c
+	@mkdir -p $(CALC_DIR)/canonical
+	$(SH_CC) $(CALC_CANONICAL_CFLAGS) -c $< -o $@
 $(CALC_DIR)/canonical/object_helpers.c.o: $(CANONICAL_SM64)/src/game/object_helpers.c
 	@mkdir -p $(CALC_DIR)/canonical
 	$(SH_CC) $(CALC_CANONICAL_CFLAGS) -c $< -o $@
@@ -155,7 +166,7 @@ $(CALC_DIR)/canonical/obj_behaviors.c.o: $(CANONICAL_SM64)/src/game/obj_behavior
 	@mkdir -p $(CALC_DIR)/canonical
 	$(SH_CC) $(CALC_CANONICAL_CFLAGS) -c $< -o $@
 $(CALC_DIR)/canonical/behavior_subset.c: $(CANONICAL_SM64)/data/behavior_data.c tools/gen_native_behavior_subset.py
-	python3 tools/gen_native_behavior_subset.py --source $(CANONICAL_SM64) --output $@ bhvStar
+	python3 tools/gen_native_behavior_subset.py --source $(CANONICAL_SM64) --output $@ bhvStar bhvYellowCoin bhvGoldenCoinSparkles bhvCoinSparkles
 $(CALC_DIR)/canonical/behavior_subset.c.o: $(CALC_DIR)/canonical/behavior_subset.c
 	$(SH_CC) $(CALC_CANONICAL_CFLAGS) -c $< -o $@
 $(CALC_DIR)/canonical/native_sm64_canonical_probe.c.o: tests/native_sm64_canonical_probe.c

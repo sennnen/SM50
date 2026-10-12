@@ -33,6 +33,9 @@ enum {
 
 extern s32 sm50_native_rom_data(s32 spawn[4], const u8 **collision, u32 *size);
 extern s32 sm50_native_find_sm64_spawn(u32 behavior, s16 transform[6], u32 *params);
+extern s32 sm50_native_yellow_coin_count(void);
+extern s32 sm50_native_yellow_coin_at(s32 ordinal, s32 values[5]);
+extern void sm50_native_hide_coin(s32 index);
 extern void update_walking_speed(struct MarioState *m);
 extern void update_mario_inputs(struct MarioState *m);
 extern s32 mario_execute_moving_action(struct MarioState *m);
@@ -112,8 +115,10 @@ void save_file_collect_star_or_key(s16 coinScore, s16 starIndex) {
     if (starIndex >= 0 && starIndex < 32) sNativeSavedStars |= 1u << starIndex;
     native_sm64_canonical_star_collected = 1;
 }
+void bhv_spawn_star_no_level_exit(u32 starIndex) { (void)starIndex; }
 
 extern const BehaviorScript bhvStar[];
+extern const BehaviorScript bhvYellowCoin[];
 extern void cur_obj_update(void);
 
 u32 save_file_get_star_flags(s32 fileIndex, s32 courseIndex) {
@@ -129,7 +134,6 @@ void enable_background_sound(void) {}
 void play_course_clear(void) {}
 void play_cap_music(u16 seqArgs) { (void)seqArgs; }
 u32 save_file_get_flags(void) { return 0; }
-void bhv_spawn_star_no_level_exit(u32 starIndex) { (void)starIndex; }
 const u8 warp_pipe_seg3_collision_03009AC8[] = { 0 };
 void abort(void) { for (;;) {} }
 void play_music(u8 player, u16 seqArgs, u16 fadeTimer) {
@@ -212,6 +216,9 @@ static struct SurfaceNode *sNativeNodes;
 static struct MarioState sNativeMario;
 static struct Object *sNativeMarioObject;
 static struct Object *sNativeStarObject;
+static struct Object *sNativeYellowCoins[48];
+static s32 sNativeYellowCoinSource[48];
+static s32 sNativeYellowCoinCount;
 static s32 sNativeStarProbeOK;
 static struct Area sNativeArea;
 static struct Camera sNativeCamera;
@@ -219,6 +226,9 @@ static struct Controller sNativeController;
 static u32 sNativeNodeCount;
 static u16 sNativePreviousButtons;
 static s32 sNativeObjectPoolInitialized;
+
+volatile s32 native_sm64_canonical_coins;
+volatile s32 native_sm64_canonical_yellow_coin_check;
 
 struct GraphNode *geo_remove_child(struct GraphNode *node) {
     return node;
@@ -379,6 +389,39 @@ static s32 initialize_native_mario(const s32 spawn[3]) {
     return 1;
 }
 
+static s32 initialize_native_yellow_coins(void) {
+    sNativeYellowCoinCount = sm50_native_yellow_coin_count();
+    if (sNativeYellowCoinCount > (s32)(sizeof(sNativeYellowCoins) /
+                                        sizeof(sNativeYellowCoins[0]))) return 0;
+    for (s32 i = 0; i < sNativeYellowCoinCount; i++) {
+        s32 values[5];
+        if (!sm50_native_yellow_coin_at(i, values)) return 0;
+        struct Object *coin = try_allocate_object(&gObjectLists[OBJ_LIST_LEVEL],
+                                                   &gFreeObjectList);
+        if (!coin) return 0;
+        memset((u8 *)coin + sizeof(struct ObjectNode), 0,
+               sizeof(*coin) - sizeof(struct ObjectNode));
+        coin->activeFlags = ACTIVE_FLAG_ACTIVE;
+        coin->parentObj = gMarioObject;
+        coin->oPosX = coin->oHomeX = (f32)values[1];
+        coin->oPosY = coin->oHomeY = (f32)values[2];
+        coin->oPosZ = coin->oHomeZ = (f32)values[3];
+        coin->oFaceAngleYaw = (s16)values[4];
+        coin->oMoveAngleYaw = (s16)values[4];
+        coin->header.gfx.scale[0] = 1.0f;
+        coin->header.gfx.scale[1] = 1.0f;
+        coin->header.gfx.scale[2] = 1.0f;
+        coin->behavior = bhvYellowCoin;
+        coin->curBhvCommand = bhvYellowCoin;
+        sNativeYellowCoins[i] = coin;
+        sNativeYellowCoinSource[i] = values[0];
+        gCurrentObject = coin;
+        cur_obj_update(); /* original SM64 behavior VM and coin init callback */
+    }
+    gCurrentObject = gMarioObject;
+    return 1;
+}
+
 static s16 read_s16(const u8 *p) {
     return (s16)(((u16)p[0] << 8) | p[1]);
 }
@@ -536,9 +579,34 @@ int native_sm64_canonical_probe(void) {
     native_sm64_canonical_star_interaction_ok = starAction && starSaved
         && !(sNativeStarObject->activeFlags & ACTIVE_FLAG_ACTIVE);
 
+    /* Run the ROM-derived yellow-coin placement through canonical behavior
+       setup, hitbox collision, Mario interaction and the original coin loop. */
+    native_sm64_canonical_yellow_coin_check = 0;
+    if (initialize_native_yellow_coins() && sNativeYellowCoinCount > 0) {
+        s32 coinData[5];
+        if (sm50_native_yellow_coin_at(0, coinData)) {
+            sNativeMario.pos[0] = (f32)coinData[1];
+            sNativeMario.pos[1] = (f32)coinData[2];
+            sNativeMario.pos[2] = (f32)coinData[3];
+            sNativeMario.forwardVel = 0.0f;
+            sNativeMario.numCoins = 0;
+            sNativeMario.action = ACT_IDLE;
+            sNativeMario.floor = NULL;
+            sNativeMario.floorHeight = find_floor(sNativeMario.pos[0],
+                sNativeMario.pos[1] + 200.0f, sNativeMario.pos[2], &sNativeMario.floor);
+            native_sm64_canonical_tick(0, 0);
+            native_sm64_canonical_tick(0, 0);
+            native_sm64_canonical_yellow_coin_check = sNativeMario.numCoins == 1
+                && !(sNativeYellowCoins[0]->activeFlags & ACTIVE_FLAG_ACTIVE);
+        }
+    }
+
     sNativeObjectPoolInitialized = 0;
     sNativeMarioObject = NULL;
     sNativeStarObject = NULL;
+    sNativeYellowCoinCount = 0;
+    native_sm64_canonical_coins = 0;
+    memset(sNativeYellowCoins, 0, sizeof(sNativeYellowCoins));
     memset(gObjectPool, 0, sizeof(gObjectPool));
     clear_object_lists(gObjectListArray);
     sNativeSavedStars = 0;
@@ -547,8 +615,10 @@ int native_sm64_canonical_probe(void) {
     gTimeStopState = 0;
     sNativeStarExitRequested = 0;
     if (!initialize_native_mario(spawn)) return 0;
+    if (!initialize_native_yellow_coins()) return 0;
     native_sm64_canonical_runtime_ready = 1;
-    pass = pass && native_sm64_canonical_star_interaction_ok;
+    pass = pass && native_sm64_canonical_star_interaction_ok
+        && native_sm64_canonical_yellow_coin_check;
     return pass;
 }
 
@@ -578,6 +648,16 @@ void native_sm64_canonical_tick(u16 buttons, u16 cameraYaw) {
     if (sNativeStarObject && (sNativeStarObject->activeFlags & ACTIVE_FLAG_ACTIVE)) {
         gCurrentObject = sNativeStarObject;
         cur_obj_update();
+    }
+    for (s32 i = 0; i < sNativeYellowCoinCount; i++) {
+        struct Object *coin = sNativeYellowCoins[i];
+        if (coin && (coin->activeFlags & ACTIVE_FLAG_ACTIVE)) {
+            gCurrentObject = coin;
+            cur_obj_update();
+        }
+        if (native_sm64_canonical_runtime_ready && coin &&
+            !(coin->activeFlags & ACTIVE_FLAG_ACTIVE))
+            sm50_native_hide_coin(sNativeYellowCoinSource[i]);
     }
     gCurrentObject = sNativeMarioObject;
     detect_object_collisions();
@@ -631,6 +711,7 @@ void native_sm64_canonical_tick(u16 buttons, u16 cameraYaw) {
     native_sm64_canonical_pos_y_q8 = (s32)(sNativeMario.pos[1] * 256.0f);
     native_sm64_canonical_pos_z_q8 = (s32)(sNativeMario.pos[2] * 256.0f);
     native_sm64_canonical_yaw = (u16)sNativeMario.faceAngle[1];
+    native_sm64_canonical_coins = sNativeMario.numCoins;
     sm50_native_publish_mario(native_sm64_canonical_pos_x_q8,
                               native_sm64_canonical_pos_y_q8,
                               native_sm64_canonical_pos_z_q8,

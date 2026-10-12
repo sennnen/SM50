@@ -39,7 +39,7 @@ calc-memory-diagnostic:
 test: host content
 	python3 tests/run_tests.py
 
-test-rom: host
+test-rom: host calc
 	python3 tests/test_sm64_rom.py "$$SM64_ROM"
 
 clean:

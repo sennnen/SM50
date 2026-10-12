@@ -146,9 +146,32 @@ optimization case study rather than copied as a whole.
   interpreter, object setup and required callbacks need to be brought over
   together.
 
-This is a successful native-code action-group integration, not yet the original
-game loop: Mario object interactions, cutscene actions, behavior
-scripts, level scripts, camera, save/progression and audio are still missing.
+Native ROM-coin integration experiment: the canonical probe sources
+Battlefield yellow-coin positions from the ROM-derived `OBJS` pack entry,
+allocates canonical SM64 `Object` records, and runs the decompilation's
+`bhvYellowCoin` script through its original behavior VM and coin callbacks.
+The native tick updates these coin objects before canonical Mario collision
+and interaction processing; deactivated coins are hidden in the
+renderer-facing object list, and Mario's native coin total is published to
+the HUD state. A startup regression places Mario on the first actual
+ROM-derived coin and verifies the original hitbox, interaction dispatcher,
+`numCoins` increment and coin deletion. The calculator emulator logs
+`SM64 canonical ROM yellow coin PASS` while loading the canonical ROM pack.
+Golden-coin sparkle behavior is compiled, while audio remains absent. This
+code is currently built into the canonical probe variant; promoting the
+native object runtime into the default add-in and replacing remaining
+approximate objects are still required.
+
+The ROM-backed emulator gate now depends on a fresh `make calc` build and
+checks the VRAM canary. It had been packaging the checked-in `dist/SM50-engine.bin`
+without rebuilding it, so its old 396x224 blitter still overwrote memory even
+though the source had already been corrected to 384x216. Rebuilding and
+packaging the current source passes the 40-frame run with the canary intact.
+
+This is a successful native-code action-group and coin-behavior integration,
+not yet the original game loop: most level objects and behavior scripts,
+cutscene actions, complete level-script execution, original camera,
+save/progression and audio are still missing.
 The next integration step is a bounded canonical object pool and behavior
 runtime connected to Bob-omb Battlefield's parsed spawns, while retaining the
 current ROM-backed renderer and flash-resident level data.

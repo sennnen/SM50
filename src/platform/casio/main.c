@@ -63,6 +63,8 @@ extern volatile s32 native_sm64_canonical_star_interaction_ok;
 extern volatile s32 native_sm64_canonical_runtime_ready;
 extern volatile s32 native_sm64_canonical_star_debug;
 extern volatile s32 native_sm64_canonical_star_hitbox_debug;
+extern volatile s32 native_sm64_canonical_coins;
+extern volatile s32 native_sm64_canonical_yellow_coin_check;
 #endif
 extern const u8 rom_image_end[];
 
@@ -75,6 +77,7 @@ void sm50_native_publish_mario(s32 x, s32 y, s32 z, u16 yaw, s32 speed,
         : !grounded ? (vertical_speed > 0 ? ANIM_JUMP : ANIM_FALL)
         : (speed ? ANIM_WALK : ANIM_IDLE));
     gGame.p.x = x; gGame.p.y = y; gGame.p.z = z;
+    gGame.p.coins = native_sm64_canonical_coins;
     gGame.p.floor_y = floor_y; gGame.p.floor_ny = 16384;
     gGame.p.face_yaw = yaw; gGame.p.fwd = speed;
     gGame.p.on_ground = grounded;
@@ -248,6 +251,8 @@ int main(void) {
         native_sm64_canonical_moved_z_q8);
     DBG("SM64 canonical star interaction %s",
         native_sm64_canonical_star_interaction_ok ? "PASS" : "FAIL");
+    DBG("SM64 canonical ROM yellow coin %s",
+        native_sm64_canonical_yellow_coin_check ? "PASS" : "FAIL");
     DBG("star collision debug=%d hitboxes=%d saved=%d",
         native_sm64_canonical_star_debug,
         native_sm64_canonical_star_hitbox_debug,

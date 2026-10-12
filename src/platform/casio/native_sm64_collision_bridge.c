@@ -44,3 +44,34 @@ int sm50_native_find_sm64_spawn(u32 behavior, s16 transform[6], u32 *params) {
     }
     return 0;
 }
+
+/* Expose the converter's ROM-decoded Battlefield yellow-coin placements to
+ * the canonical object runtime. Rendering and display-list extraction remain
+ * in SM50; coin hitboxes and collection are handled by original SM64 code. */
+int sm50_native_yellow_coin_count(void) {
+    int count = 0;
+    for (int i = 0; i < gLevel.n_objs; i++)
+        if (gLevel.objs[i].active && gLevel.objs[i].type == OBJ_COIN) count++;
+    return count;
+}
+
+int sm50_native_yellow_coin_at(int ordinal, s32 values[5]) {
+    int count = 0;
+    for (int i = 0; i < gLevel.n_objs; i++) {
+        Obj *obj = &gLevel.objs[i];
+        if (!obj->active || obj->type != OBJ_COIN) continue;
+        if (count++ != ordinal) continue;
+        values[0] = i;
+        values[1] = obj->x;
+        values[2] = obj->y;
+        values[3] = obj->z;
+        values[4] = obj->yaw;
+        return 1;
+    }
+    return 0;
+}
+
+void sm50_native_hide_coin(s32 index) {
+    if (index >= 0 && index < gLevel.n_objs && gLevel.objs[index].type == OBJ_COIN)
+        gLevel.objs[index].active = 0;
+}
