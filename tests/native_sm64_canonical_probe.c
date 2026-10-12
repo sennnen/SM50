@@ -140,6 +140,7 @@ extern const BehaviorScript bhvStar[];
 extern const BehaviorScript bhvYellowCoin[];
 extern const BehaviorScript bhvRedCoin[];
 extern const BehaviorScript bhvHiddenRedCoinStar[];
+extern const BehaviorScript bhvStarSpawnCoordinates[];
 extern void cur_obj_update(void);
 
 u32 save_file_get_star_flags(s32 fileIndex, s32 courseIndex) {
@@ -256,6 +257,7 @@ volatile s32 native_sm64_canonical_coins;
 volatile s32 native_sm64_canonical_yellow_coin_check;
 volatile s32 native_sm64_canonical_red_coin_check;
 volatile s32 native_sm64_canonical_red_coin_debug;
+volatile s32 native_sm64_canonical_red_star_check;
 
 struct GraphNode *geo_remove_child(struct GraphNode *node) {
     return node;
@@ -513,6 +515,19 @@ static s32 initialize_native_red_coins(void) {
     return 1;
 }
 
+static struct Object *find_native_behavior_object(const BehaviorScript *behavior) {
+    struct ObjectNode *head = &gObjectLists[OBJ_LIST_LEVEL];
+    struct ObjectNode *node = head->next;
+    s32 visited = 0;
+    while (node != head && visited++ < SM50_NATIVE_OBJECT_POOL_CAPACITY) {
+        struct Object *object = (struct Object *)node;
+        if ((object->activeFlags & ACTIVE_FLAG_ACTIVE) && object->behavior == behavior)
+            return object;
+        node = node->next;
+    }
+    return NULL;
+}
+
 static void update_native_level_objects(void) {
     struct ObjectNode *head = &gObjectLists[OBJ_LIST_LEVEL];
     struct ObjectNode *node = head->next;
@@ -720,6 +735,7 @@ int native_sm64_canonical_probe(void) {
     }
 
     native_sm64_canonical_red_coin_check = 0;
+    native_sm64_canonical_red_star_check = 0;
     if (initialize_native_red_coins() && sNativeRedCoinCount > 0) {
         s32 coinData[5];
         if (sm50_native_red_coin_at(0, coinData)) {
@@ -752,6 +768,36 @@ int native_sm64_canonical_probe(void) {
                 && sNativeRedCoinStar->oHiddenStarTriggerCounter >= 1
                 && inactiveRedCoins >= 1;
         }
+
+        /* Finish the real eight-coin progression, keeping the canonical
+         * collision/interaction and behavior update path for each placement. */
+        for (s32 i = 0; i < sNativeRedCoinCount &&
+                        sNativeRedCoinStar->oHiddenStarTriggerCounter < 8; i++) {
+            struct Object *coin = sNativeRedCoins[i];
+            if (!(coin->activeFlags & ACTIVE_FLAG_ACTIVE)) continue;
+            sNativeMario.pos[0] = coin->oPosX;
+            sNativeMario.pos[1] = coin->oPosY;
+            sNativeMario.pos[2] = coin->oPosZ;
+            sNativeMario.forwardVel = 0.0f;
+            sNativeMario.action = ACT_IDLE;
+            sNativeMario.floor = NULL;
+            sNativeMario.floorHeight = find_floor(sNativeMario.pos[0],
+                sNativeMario.pos[1] + 200.0f, sNativeMario.pos[2], &sNativeMario.floor);
+            native_sm64_canonical_tick(0, 0);
+            native_sm64_canonical_tick(0, 0);
+        }
+        for (s32 i = 0; i < 4; i++) native_sm64_canonical_tick(0, 0);
+
+        struct Object *spawnedRedStar =
+            find_native_behavior_object(bhvStarSpawnCoordinates);
+        native_sm64_canonical_red_star_check =
+            sNativeRedCoinStar->oHiddenStarTriggerCounter == 8
+            && !(sNativeRedCoinStar->activeFlags & ACTIVE_FLAG_ACTIVE)
+            && spawnedRedStar != NULL
+            && spawnedRedStar->oBhvParams2ndByte == 1
+            && spawnedRedStar->oHomeX == sNativeRedCoinStar->oPosX
+            && spawnedRedStar->oHomeY == sNativeRedCoinStar->oPosY
+            && spawnedRedStar->oHomeZ == sNativeRedCoinStar->oPosZ;
     }
 
     sNativeObjectPoolInitialized = 0;

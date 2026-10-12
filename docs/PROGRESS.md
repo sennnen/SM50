@@ -26,9 +26,11 @@
 - The canonical SH4 probe now runs the decompilation's original star and
   yellow/red coin behavior scripts against Battlefield ROM placements. The
   emulator passes star collection, a ROM yellow-coin reward, and red-coin
-  trigger advancement. The red coin test can overlap placements, so it checks
-  the original reward/trigger and at least one despawn rather than assuming one
-  coin per tick. Eight-coin star spawning and renderer integration remain
+  trigger advancement. It also collects all eight red coins via canonical
+  interaction dispatch and confirms the original red-coin star-spawn behavior
+  creates `bhvStarSpawnCoordinates` at the trigger's home position. The red
+  coin test can overlap placements, so its first reward check allows multiple
+  coins per tick. Full star animation, rendering and collection remain
   unverified. A two-frame emulator run estimated 54 FPS after startup; this is
   instruction-count math, not a calculator measurement.
 - The existing synthetic regression suite passes 20/20 groups. Its PNG check
@@ -168,9 +170,12 @@ ROM-derived coin and verifies the original hitbox, interaction dispatcher,
 `SM64 canonical ROM red coin PASS` while loading the canonical ROM pack. The
 red-coin check instantiates the original hidden-star trigger and the ROM's red
 coins, then verifies canonical Mario interaction increments the trigger and
-awards the original coin value. It does not yet exercise all eight coins or
-spawn/collect the resulting red-coin star. The calculator emulator estimates
-about 54 FPS after startup for this probe, based on instruction counts only.
+awards the original coin value. A follow-up check collects all eight ROM coins
+through the same dispatcher and confirms `bhvHiddenRedCoinStar` deactivates
+after spawning the original `bhvStarSpawnCoordinates` object at its configured
+home position. Star animation, visual rendering, and collection are not yet
+verified. The calculator emulator estimates about 54 FPS after startup for
+this probe, based on instruction counts only.
 Golden-coin sparkle behavior is compiled, while audio remains absent. This
 code is currently built into the canonical probe variant; promoting the
 native object runtime into the default add-in and replacing remaining
