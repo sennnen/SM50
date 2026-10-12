@@ -3,15 +3,31 @@
 #include <string.h>
 #include "sm64.h"
 #include "game/mario.h"
+#include "game/area.h"
 #include "game/mario_step.h"
 #include "engine/math_util.h"
 #include "engine/surface_collision.h"
 #include "engine/surface_load.h"
 #include "surface_terrains.h"
+#include "audio/external.h"
+#include "game/camera.h"
+#include "game/interaction.h"
+#include "game/memory.h"
+#include "game/sound_init.h"
 
 extern s32 sm50_native_rom_data(s32 spawn[3], const u8 **collision, u32 *size);
 extern void update_walking_speed(struct MarioState *m);
-extern void sm50_native_publish_mario(s32 x, s32 y, s32 z, u16 yaw, s32 speed, s32 grounded);
+extern s32 act_jump(struct MarioState *m);
+extern s32 act_jump_land(struct MarioState *m);
+extern s32 act_freefall(struct MarioState *m);
+extern s32 act_freefall_land(struct MarioState *m);
+extern s32 act_walking(struct MarioState *m);
+extern s16 sm50_set_mario_animation(struct MarioState *m, s32 targetAnimID);
+extern s16 sm50_set_mario_anim_with_accel(struct MarioState *m, s32 targetAnimID, s32 accel);
+extern void sm50_native_publish_mario(s32 x, s32 y, s32 z, u16 yaw, s32 speed,
+                                      s32 vertical_speed, s32 floor_y, s32 grounded,
+                                      s32 landing);
+extern u32 set_mario_action(struct MarioState *m, u32 action, u32 actionArg);
 extern f32 find_floor(f32 x, f32 y, f32 z, struct Surface **pfloor);
 extern s32 perform_ground_step(struct MarioState *m);
 extern void *sys_malloc(u32 size);
@@ -23,41 +39,43 @@ s32 gCheckingSurfaceCollisionsForCamera;
 s32 gNumFindFloorMisses;
 u32 gGlobalTimer;
 TerrainData *gEnvironmentRegions;
+u32 gAudioRandom;
+s16 gCurrLevelNum;
+s16 gCameraMovementFlags;
 struct MarioState *gMarioState;
 struct Object *gMarioObject;
 struct Object *gCurrentObject;
 struct NativeNumTimesCalled { s16 floor, ceil, wall; } gNumCalls;
 
-struct Surface *resolve_and_return_wall_collisions(Vec3f pos, f32 offset, f32 radius) {
-    struct WallCollisionData collision = { 0 };
-    collision.x = pos[0];
-    collision.y = pos[1];
-    collision.z = pos[2];
-    collision.offsetY = offset;
-    collision.radius = radius;
-    struct Surface *wall = NULL;
-    if (find_wall_collisions(&collision))
-        wall = collision.walls[collision.numWalls - 1];
-    pos[0] = collision.x;
-    pos[1] = collision.y;
-    pos[2] = collision.z;
-    return wall;
+void play_sound(s32 sound, f32 *pos) { (void)sound; (void)pos; }
+void set_camera_shake_from_hit(s16 shake) { (void)shake; }
+s32 load_patchable_table(struct DmaHandlerList *list, s32 index) { (void)list; (void)index; return 0; }
+void raise_background_noise(s32 level) { (void)level; }
+void set_camera_mode(struct Camera *camera, s16 mode, s16 frames) {
+    (void)camera; (void)mode; (void)frames;
 }
-
-f32 vec3f_find_ceil(Vec3f pos, f32 height, struct Surface **ceil) {
-    return find_ceil(pos[0], height + 80.0f, pos[2], ceil);
-}
-
-u32 mario_get_terrain_sound_addend(struct MarioState *m) {
-    (void)m;
-    return 0;
-}
+void mario_stop_riding_and_holding(struct MarioState *m) { (void)m; }
+void mario_drop_held_object(struct MarioState *m) { (void)m; }
 
 static struct Surface *sNativeSurfaces;
 static struct SurfaceNode *sNativeNodes;
 static struct MarioState sNativeMario;
 static struct Object sNativeMarioObject;
+static struct Area sNativeArea;
+static struct Controller sNativeController;
 static u32 sNativeNodeCount;
+static u16 sNativePreviousButtons;
+
+/* Animation decoding stays in the ROM-backed renderer; these hooks keep
+ * action logic independent of the decompilation's N64 animation runtime. */
+s16 sm50_set_mario_animation(struct MarioState *m, s32 targetAnimID) {
+    (void)m; (void)targetAnimID;
+    return 0;
+}
+s16 sm50_set_mario_anim_with_accel(struct MarioState *m, s32 targetAnimID, s32 accel) {
+    (void)m; (void)targetAnimID; (void)accel;
+    return 0;
+}
 
 static s16 read_s16(const u8 *p) {
     return (s16)(((u16)p[0] << 8) | p[1]);
@@ -137,9 +155,6 @@ static s32 load_rom_collision(const u8 *colv, u32 colvSize) {
     return sNativeNodeCount == 5340;
 }
 
-s32 mario_floor_is_slope(struct MarioState *m) { (void)m; return 0; }
-s32 mario_get_floor_class(struct MarioState *m) { (void)m; return 0; }
-
 volatile s32 native_sm64_canonical_floor_y_q8;
 volatile s32 native_sm64_canonical_floor_ny_q14;
 volatile s32 native_sm64_canonical_speed_q12;
@@ -163,6 +178,9 @@ int native_sm64_canonical_probe(void) {
 
     memset(&sNativeMario, 0, sizeof(sNativeMario));
     memset(&sNativeMarioObject, 0, sizeof(sNativeMarioObject));
+    memset(&sNativeArea, 0, sizeof(sNativeArea));
+    memset(&sNativeController, 0, sizeof(sNativeController));
+    sNativeArea.terrainType = TERRAIN_GRASS;
     struct MarioState *mario = &sNativeMario;
     struct Object *marioObject = &sNativeMarioObject;
     mario->floor = floor;
@@ -171,7 +189,10 @@ int native_sm64_canonical_probe(void) {
     mario->pos[1] = floorHeight;
     mario->pos[2] = spawn[2];
     mario->intendedMag = 32.0f;
+    mario->action = ACT_WALKING;
+    mario->area = &sNativeArea;
     mario->marioObj = marioObject;
+    mario->controller = &sNativeController;
     gMarioState = mario;
     gMarioObject = marioObject;
     gCurrentObject = marioObject;
@@ -212,14 +233,43 @@ void native_sm64_canonical_tick(u16 buttons, u16 cameraYaw) {
         sNativeMario.intendedMag = 0.0f;
     }
 
+    s32 jumpPressed = (buttons & 0x10) && !(sNativePreviousButtons & 0x10);
+    s32 actionPressed = (buttons & 0x20) && !(sNativePreviousButtons & 0x20);
+    sNativePreviousButtons = buttons;
+    sNativeController.buttonDown = ((buttons & 0x10) ? A_BUTTON : 0)
+        | ((buttons & 0x20) ? B_BUTTON : 0);
+    sNativeController.buttonPressed = (jumpPressed ? A_BUTTON : 0)
+        | (actionPressed ? B_BUTTON : 0);
+    sNativeController.stickX = (f32)ix * 64.0f;
+    sNativeController.stickY = (f32)iz * 64.0f;
+    sNativeController.stickMag = (ix || iz) ? 64.0f : 0.0f;
+    sNativeMario.input = (ix || iz ? INPUT_NONZERO_ANALOG : 0)
+        | (jumpPressed ? INPUT_A_PRESSED : 0)
+        | (actionPressed ? INPUT_B_PRESSED : 0);
     struct Surface *floor = NULL;
-    f32 height = find_floor(sNativeMario.pos[0], sNativeMario.pos[1] + 200.0f,
-                            sNativeMario.pos[2], &floor);
-    if (floor) {
-        sNativeMario.floor = floor;
-        sNativeMario.floorHeight = height;
-        update_walking_speed(&sNativeMario);
-        perform_ground_step(&sNativeMario);
+    if (sNativeMario.action == ACT_JUMP) {
+        act_jump(&sNativeMario);
+        floor = sNativeMario.floor;
+    } else if (sNativeMario.action == ACT_FREEFALL) {
+        act_freefall(&sNativeMario);
+        floor = sNativeMario.floor;
+    } else if (sNativeMario.action == ACT_JUMP_LAND) {
+        act_jump_land(&sNativeMario);
+    } else if (sNativeMario.action == ACT_FREEFALL_LAND) {
+        act_freefall_land(&sNativeMario);
+    } else {
+        f32 height = find_floor(sNativeMario.pos[0], sNativeMario.pos[1] + 200.0f,
+                                sNativeMario.pos[2], &floor);
+        if (floor) {
+            sNativeMario.floor = floor;
+            sNativeMario.floorHeight = height;
+            if (sNativeMario.action == ACT_WALKING) {
+                act_walking(&sNativeMario);
+            } else {
+                update_walking_speed(&sNativeMario);
+                perform_ground_step(&sNativeMario);
+            }
+        }
     }
 
     native_sm64_canonical_pos_x_q8 = (s32)(sNativeMario.pos[0] * 256.0f);
@@ -230,5 +280,9 @@ void native_sm64_canonical_tick(u16 buttons, u16 cameraYaw) {
                               native_sm64_canonical_pos_z_q8,
                               sNativeMario.faceAngle[1],
                               (s32)(sNativeMario.forwardVel * 256.0f),
-                              floor != NULL);
+                              (s32)(sNativeMario.vel[1] * 256.0f),
+                              (s32)(sNativeMario.floorHeight * 256.0f),
+                              !(sNativeMario.action & ACT_FLAG_AIR),
+                              sNativeMario.action == ACT_JUMP_LAND ||
+                                  sNativeMario.action == ACT_FREEFALL_LAND);
 }

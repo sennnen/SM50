@@ -59,13 +59,20 @@ extern volatile s32 native_sm64_canonical_speed_q12;
 extern const u8 rom_image_end[];
 
 #ifdef SM50_CANONICAL_PROBE
-void sm50_native_publish_mario(s32 x, s32 y, s32 z, u16 yaw, s32 speed, s32 grounded) {
+void sm50_native_publish_mario(s32 x, s32 y, s32 z, u16 yaw, s32 speed,
+                               s32 vertical_speed, s32 floor_y, s32 grounded,
+                               s32 landing) {
+    int anim = landing ? ANIM_LAND
+        : !grounded ? (vertical_speed > 0 ? ANIM_JUMP : ANIM_FALL)
+        : (speed ? ANIM_WALK : ANIM_IDLE);
     gGame.p.x = x; gGame.p.y = y; gGame.p.z = z;
-    gGame.p.floor_y = y; gGame.p.floor_ny = 16384;
+    gGame.p.floor_y = floor_y; gGame.p.floor_ny = 16384;
     gGame.p.face_yaw = yaw; gGame.p.fwd = speed;
     gGame.p.on_ground = grounded;
-    gGame.p.action = speed ? ACT_WALK : ACT_IDLE;
-    gGame.p.anim = speed ? ANIM_WALK : ANIM_IDLE;
+    gGame.p.action = landing ? ACT_LAND
+        : !grounded ? ACT_JUMP : (speed ? ACT_WALK : ACT_IDLE);
+    if (gGame.p.anim != anim) { gGame.p.anim = anim; gGame.p.anim_frame = 0; }
+    else gGame.p.anim_frame += 16;
     gGame.p.safe_x = x; gGame.p.safe_y = y; gGame.p.safe_z = z;
 }
 #endif
@@ -220,7 +227,8 @@ int main(void) {
         sm50_native_publish_mario(native_sm64_canonical_pos_x_q8,
                                   native_sm64_canonical_pos_y_q8,
                                   native_sm64_canonical_pos_z_q8, 0,
-                                  native_sm64_canonical_speed_q12 >> 4, 1);
+                                  native_sm64_canonical_speed_q12 >> 4, 0,
+                                  native_sm64_canonical_pos_y_q8, 1, 0);
     }
 #endif
     DBG("level loaded: %d chunks %d objs", gLevel.n_chunks, gLevel.n_objs);

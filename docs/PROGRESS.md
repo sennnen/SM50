@@ -76,19 +76,26 @@ optimization case study rather than copied as a whole.
   triangles. It executes canonical `find_floor`, wall and ceiling checks,
   `update_walking_speed`, and `perform_ground_step` for 30 consecutive ticks.
   Mario moves 413.1 world units with floor Y 0, normal Y 16384 and speed
-  98099/4096. The canonical motor then runs on each game tick in the separate
-  probe add-in, using calculator arrows to set Mario's intended direction and
-  the original movement and ground-step routines to move over the ROM surfaces.
-  A 20-frame emulator input run showed the resulting Mario movement in the
-  existing renderer. Terrain classification and sound remain adapter stubs;
-  jump/action dispatch and native objects are not yet in the frame loop.
+  98099/4096. In the separate probe add-in, calculator arrows drive the
+  original `act_walking` routine, which handles acceleration, ground collision, wall
+  response and jump input. The action loop calls canonical `act_jump`,
+  `common_air_action_step`, `perform_air_step`, `act_jump_land`, `act_freefall`
+  and `act_freefall_land`. A 120-frame input run completed without faults,
+  showing the jump arc, landing action and movement on the ROM collision mesh.
+  The renderer displays canonical position and selects walk/jump/fall/landing
+  clips by action phase. Animation and sound APIs cross platform hooks. The
+  full action tables and native objects are not yet in the frame loop.
 - The PS1 port's float/Q12 bridge used bitfield ordering that returned zero on
   this big-endian SH4 target. An endian-safe local bridge fixes that issue;
   direct tests confirm Q12 158 round-trips and 0.5 converts correctly.
 - The existing linker map limits `.data + .bss` to 320 KiB and reserves 192
   KiB for stack. Preview data+BSS uses 181,092 bytes; the PS1 Q12 probe uses
-  203,692 bytes and the canonical ground-step probe uses 216,048 bytes. The
-  canonical probe allocates 98,880 bytes for surfaces and 6,000 links; the
+  203,692 bytes and the latest canonical movement/action probe uses 217,048
+  bytes. Its `.data` is 22,720 bytes, `.bss` is 194,328 bytes, and text is
+  143,168 bytes.
+  The 120-frame emulator run used about 5 KiB of stack high-water, an emulator
+  estimate. The canonical probe allocates 98,880 bytes for surfaces and 6,000
+  links; the
   emulator reports a separate 256 KiB allocator arena, not confirmed on
   hardware.
 - SH4 layout measurements from canonical decomp give `MarioState` 200 B,
@@ -98,19 +105,18 @@ optimization case study rather than copied as a whole.
   reproduces the original surface-cell boundary rules: Battlefield needs 1,060
   surfaces and 5,340 links (93,600 bytes), versus 158,400 bytes in the stock
   canonical reservations. Static partitions plus the 64-object pool fit the
-  measured 320 KiB static budget with about 71 KiB left for game state.
+  measured 320 KiB static budget with about 70 KiB left for game state.
 - The canonical `n64decomp/sm64` CC0 repository is pinned as a submodule at
-  `9921382a`. Its unmodified `mario_actions_moving.c`, `mario_step.c`,
-  `surface_collision.c` and `math_util.c` compile to SH4 and link into a
-  separate add-in. The CG50 emulator executes canonical walking and ground
-  steps over ROM-derived geometry, and the probe's per-frame loop routes
-  directional input through that motor. The full action dispatcher and
-  object behavior runtime are still outstanding.
+  `9921382a`. Its movement/action, step, collision and math routines compile
+  for SH4; animation calls are redirected to platform hooks. The CG50 emulator
+  executes canonical walking, ground steps,
+  jump and landing actions over ROM-derived geometry. Full action dispatch,
+  object behavior runtime, level scripts and original camera are outstanding.
 
-This is a successful native-code experiment, not yet an original game loop:
-Mario's full action dispatcher, collision queries, object behavior scripts,
-level scripts, camera, save/progression and animations are still not running
-from original game code. The next integration step is the original per-frame
-Mario/action dispatcher connected to ROM-derived collision surfaces. Then
-bring up level/area scripts and object behaviors with bounded object pools and
-flash-resident level/animation data. Keep the existing renderer as the backend.
+This is a successful native-code movement/action slice, not yet an original
+game loop: the full Mario action dispatcher, object behavior scripts, level
+scripts, camera, save/progression and original animation runtime are still not
+running from original game code. The next integration step is to generalize
+canonical per-frame action dispatch, then bring up level/area scripts and
+object behaviors with bounded object pools and flash-resident level/animation
+data. Keep the existing renderer as the backend.

@@ -3,8 +3,8 @@
 The project is shifting from a ROM-rendered preview to a native recompilation
 of Super Mario 64's original gameplay code. The existing renderer and ROM
 pipeline remain in place as candidate backends. A SH4 experiment now compiles
-and executes original-derived walking acceleration and Q12 slope movement
-alongside ROM-derived Bob-omb Battlefield geometry. This is a narrow porting
+and executes the original walking, jump, freefall and landing action routines
+against ROM-derived Bob-omb Battlefield geometry. This is a narrow porting
 probe, **not the full game**; see [docs/PROGRESS.md](docs/PROGRESS.md) and
 [docs/NATIVE_RECOMPILATION.md](docs/NATIVE_RECOMPILATION.md).
 

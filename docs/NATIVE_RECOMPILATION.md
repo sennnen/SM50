@@ -116,18 +116,22 @@ linked partitions from the ROM's 1,060 collision triangles. It runs the
 decompilation's own `find_floor`, wall and ceiling collision queries,
 `update_walking_speed`, and `perform_ground_step` for 30 consecutive ticks on
 that geometry. The emulator reports floor height 0, normal Y 16384 (Q14),
-walking speed 98099/4096, and 413.1 units of forward movement. After this
-bring-up run, the canonical motor is called on every game tick in the
-canonical-probe add-in: calculator arrow keys select intended direction, the
-original walking-speed routine updates Mario, and the original ground-step
-routine resolves movement against the loaded surfaces. A 20-frame emulator
-input run moved Mario under this path and rendered the ROM-derived Battlefield
-and Mario model. The ground-step test uses a small adapter for
-renderer-independent globals and stubs terrain classification and sound;
-those stubs do not affect this flat spawn case. The per-frame harness does not
-yet call the full action dispatcher, jumping actions, object behavior VM,
-level scripts or original camera. The approximately 48 FPS figure is an
-emulator instruction-count estimate, not a calculator measurement.
+walking speed 98099/4096, and 413.1 units of forward movement. In the
+canonical-probe add-in, calculator arrows now drive the decompilation's
+original `act_walking`, which owns its acceleration, ground step, input-driven
+jump transition, wall response and animation/audio calls. Jump input enters
+the original `set_mario_action(ACT_JUMP)` transition, then runs `act_jump`,
+`common_air_action_step`, `perform_air_step` and `act_jump_land`; `act_freefall`
+and its landing action handle falling from ground edges. These resolve against
+the same ROM-derived collision surfaces. Animation requests cross a platform
+hook and the existing renderer selects ROM-derived walk/jump/fall/landing
+clips from the canonical action phase. Sound and camera calls are platform
+stubs, and the complete moving and airborne action dispatchers are not yet
+connected. A 120-frame emulator run with scripted jump input completed without
+faults and rendered actual Battlefield geometry and Mario. Its 56 FPS
+instruction-count estimate is not a calculator measurement. The harness also
+retains adapters for renderer-independent globals and currently tested
+Battlefield terrain behavior.
 
 Build and run this ROM-local experiment with:
 
@@ -143,14 +147,22 @@ git submodule update --init deps/n64decomp-sm64
 python3 tools/build_native_probe.py --source canonical --rom "/path/to/your/SM64 ROM.z64"
 ```
 
+To exercise the original jump/landing slice with scripted calculator input:
+
+```sh
+python3 tools/build_native_probe.py --source canonical --frames 120 \
+  --keys tests/inputs/canonical-jump.keys --rom "/path/to/your/SM64 ROM.z64"
+```
+
 The ROM-derived pack, add-in and logs are written under ignored `build/`.
 
 ## Next integration boundary
 
-The experiment now runs canonical walking-speed and ground-step logic with the
-decompilation's floor, wall and ceiling queries against ROM collision. It does
-not yet run the full Mario action dispatcher, object behavior VM, level scripts
-or original camera. The next port layer should bring in the canonical per-frame
-action dispatcher, then add the Battlefield level/area script and object
-behavior execution needed for enemies and stars. Keep rendering as a backend
-that consumes the resulting original game state and ROM geometry.
+The experiment now runs canonical walking, jumping, jump landing, freefall and
+collision steps with the decompilation's floor, wall and ceiling queries
+against ROM collision. It does not yet run the full Mario action dispatchers,
+object behavior VM, level scripts, camera or progression. The next port layer should
+generalize action dispatch beyond this jump slice, then add the Battlefield
+level/area script and object behavior execution needed for enemies and stars.
+Keep rendering as a backend that consumes the resulting original game state
+and ROM geometry.

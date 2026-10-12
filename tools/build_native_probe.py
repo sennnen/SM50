@@ -24,6 +24,8 @@ def main():
                         help="canonical decomp checkout (default: deps/n64decomp-sm64)")
     parser.add_argument("--skip-emulator", action="store_true")
     parser.add_argument("--frames", type=int, default=1)
+    parser.add_argument("--keys", type=Path,
+                        help="optional calculator-emulator key script")
     args = parser.parse_args()
     rom = args.rom.expanduser().resolve()
     if not rom.is_file():
@@ -55,8 +57,14 @@ def main():
         emulator = Path(os.environ.get("SM50EMU", ROOT / "build" / "sm50emu"))
         if emulator.is_file():
             log = out / "emulator.log"
-            result = run([str(emulator), "--max-frames", str(args.frames),
-                          "--log", str(log), str(g3a)], capture=True)
+            command = [str(emulator), "--max-frames", str(args.frames)]
+            if args.keys:
+                keys = args.keys.expanduser().resolve()
+                if not keys.is_file():
+                    parser.error(f"key script not found: {keys}")
+                command.extend(["--keys", str(keys)])
+            command.extend(["--log", str(log), str(g3a)])
+            result = run(command, capture=True)
             print(result.stdout, end="")
             if marker not in result.stdout:
                 raise SystemExit("native movement probe did not report PASS")
