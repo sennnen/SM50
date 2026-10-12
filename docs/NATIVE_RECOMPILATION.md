@@ -168,6 +168,15 @@ raw records in a bounded 64-entry table; the canonical behavior interpreter
 does not consume them yet. This prevents the current three-entry compatibility
 mapping from discarding data needed by the native object runtime.
 
+The canonical `data/behavior_data.c` compiles for SH4 to about 22 KiB of
+read-only bytecode, but it does not link in isolation: selected Battlefield
+scripts carry relocations to native object callbacks, level collision symbols,
+and animation data from the original engine. Thus resolving the ROM's segment
+addresses to C array names is insufficient. The next object-runtime slice must
+port or adapt the interpreter, initialize canonical `Object` state, and connect
+the relevant native callbacks and asset references as a coherent subset before
+any of those scripts can safely execute.
+
 ## Next integration boundary
 
 The experiment now runs canonical stationary, moving, airborne, submerged,

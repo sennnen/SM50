@@ -120,6 +120,12 @@ optimization case study rather than copied as a whole.
   parameters. The existing renderer-facing `OBJS` chunk remains compatible.
   The engine loads these into a bounded 64-record table and reports the count;
   canonical behavior execution is the next integration step.
+- Object-runtime boundary experiment: canonical behavior bytecode compiles for
+  SH4 (~22 KiB read-only), but selected scripts have link-time dependencies on
+  original object callbacks, level collision symbols and animation assets.
+  A behavior-address lookup by itself cannot execute these scripts safely; the
+  interpreter, object setup and required callbacks need to be brought over
+  together.
 
 This is a successful native-code action-group integration, not yet the original
 game loop: Mario object interactions, cutscene actions, behavior
