@@ -109,11 +109,11 @@ const u16 *sm50_screen(void) { return screen; }
 
 static void vram_to_screen(int y1, int y2) {
   if (y1 < 0) y1 = 0;
-  if (y2 > SM50_LCD_H - 1) y2 = SM50_LCD_H - 1;
+  if (y2 > SM50_OS_VRAM_H - 1) y2 = SM50_OS_VRAM_H - 1;
   for (int y = y1; y <= y2; y++) {
-    u32 a = SM50_VRAM_ADDR + (u32)y * SM50_LCD_W * 2;
-    u16 *row = &screen[y * SM50_LCD_W];
-    for (int x = 0; x < SM50_LCD_W; x += 2, a += 4) {
+    u32 a = SM50_VRAM_ADDR + (u32)y * SM50_OS_VRAM_W * 2;
+    u16 *row = &screen[(y + 4) * SM50_LCD_W + 6];
+    for (int x = 0; x < SM50_OS_VRAM_W; x += 2, a += 4) {
       u32 w = mem_r32(a);         /* two big-endian pixels */
       row[x] = (u16)(w >> 16);
       row[x + 1] = (u16)w;
@@ -121,11 +121,27 @@ static void vram_to_screen(int y1, int y2) {
   }
 }
 
-void sm50_hle_vram_to_screen(void) { vram_to_screen(0, SM50_LCD_H - 1); }
+void sm50_hle_vram_to_screen(void) { vram_to_screen(0, SM50_OS_VRAM_H - 1); }
 
 static void vram_fill(u32 base, u16 color) {
   u32 w = ((u32)color << 16) | color;
-  for (u32 i = 0; i < SM50_LCD_W * SM50_LCD_H * 2; i += 4) mem_w32(base + i, w);
+  for (u32 i = 0; i < SM50_OS_VRAM_BYTES; i += 4) mem_w32(base + i, w);
+}
+
+void sm50_hle_vram_guard_init(void) {
+  const u32 begin = SM50_VRAM_ADDR + SM50_OS_VRAM_BYTES;
+  const u32 pattern = 0x51a7c0deu;
+  for (u32 off = 0; off < SM50_VRAM_GUARD_BYTES; off += 4)
+    mem_w32(begin + off, pattern ^ off);
+}
+
+u32 sm50_hle_vram_guard_errors(void) {
+  const u32 begin = SM50_VRAM_ADDR + SM50_OS_VRAM_BYTES;
+  const u32 pattern = 0x51a7c0deu;
+  u32 errors = 0;
+  for (u32 off = 0; off < SM50_VRAM_GUARD_BYTES; off += 4)
+    if (mem_r32(begin + off) != (pattern ^ off)) errors++;
+  return errors;
 }
 
 /* ------------------------------------------------------------------ */
@@ -472,21 +488,21 @@ static u32 do_syscall(u32 num) {
       return 0;
     case 0x0263: { /* Bdisp_SetPoint_VRAM(int x, int y, int color) */
       i32 x = (i32)arg(0), y = (i32)arg(1);
-      if (x >= 0 && x < SM50_LCD_W && y >= 0 && y < SM50_LCD_H)
-        mem_w16(SM50_VRAM_ADDR + (u32)(y * SM50_LCD_W + x) * 2, (u16)arg(2));
+      if (x >= 0 && x < SM50_OS_VRAM_W && y >= 0 && y < SM50_OS_VRAM_H)
+        mem_w16(SM50_VRAM_ADDR + (u32)(y * SM50_OS_VRAM_W + x) * 2, (u16)arg(2));
       return 0;
     }
     case 0x0267: { /* Bdisp_GetPoint_VRAM(int x, int y) */
       i32 x = (i32)arg(0), y = (i32)arg(1);
-      if (x >= 0 && x < SM50_LCD_W && y >= 0 && y < SM50_LCD_H)
-        return mem_r16(SM50_VRAM_ADDR + (u32)(y * SM50_LCD_W + x) * 2);
+      if (x >= 0 && x < SM50_OS_VRAM_W && y >= 0 && y < SM50_OS_VRAM_H)
+        return mem_r16(SM50_VRAM_ADDR + (u32)(y * SM50_OS_VRAM_W + x) * 2);
       return 0;
     }
     case 0x1E62: /* SaveVRAM_1 */
-      mem_copy(SM50_VRAM2_ADDR, SM50_VRAM_ADDR, SM50_LCD_W * SM50_LCD_H * 2);
+      mem_copy(SM50_VRAM2_ADDR, SM50_VRAM_ADDR, SM50_OS_VRAM_BYTES);
       return 0;
     case 0x1E63: /* LoadVRAM_1 */
-      mem_copy(SM50_VRAM_ADDR, SM50_VRAM2_ADDR, SM50_LCD_W * SM50_LCD_H * 2);
+      mem_copy(SM50_VRAM_ADDR, SM50_VRAM2_ADDR, SM50_OS_VRAM_BYTES);
       return 0;
     case 0x0921: /* Bdisp_EnableColor / EnableColor */
     case 0x02B7: /* EnableStatusArea */
@@ -666,6 +682,7 @@ void sm50_hle_init(void) {
   for (int i = 0; i < SM50_LCD_W * SM50_LCD_H; i++) screen[i] = 0xffff;
   vram_fill(SM50_VRAM_ADDR, 0xffff);
   vram_fill(SM50_VRAM2_ADDR, 0xffff);
+  sm50_hle_vram_guard_init();
 }
 
 void sm50_hle_report(FILE *f) {

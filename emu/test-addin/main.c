@@ -31,8 +31,8 @@ void Bfile_StrToName_ncpy(u16 *dst, const char *src, int n);
 void sm50_debug_print(const char *s);
 int sm50_unknown_probe(int a);
 
-#define LCD_W 396
-#define LCD_H 224
+#define LCD_W 384
+#define LCD_H 216
 
 #define KEY_LEFT 38
 #define KEY_RIGHT 27

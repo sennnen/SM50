@@ -171,12 +171,19 @@ static void print_summary(FILE *f, int code, const char *reason) {
           sp_top - a, sp_top, lo, sp_top);
   const u16 *scr = sm50_screen();
   fprintf(f, "final screen crc32: %08x\n", sm50_crc32(0, scr, SM50_LCD_W * SM50_LCD_H * 2));
+  fprintf(f, "OS VRAM guard     : %u/%u guard words corrupted (384x216 surface)\n",
+          (unsigned)sm50_hle_vram_guard_errors(),
+          (unsigned)(SM50_VRAM_GUARD_BYTES / 4));
   sm50_hle_report(f);
 }
 
 void sm50_finish(int code, const char *reason) {
   finished = true;
   if (sm50_opt.shot_final) shot("final.png");
+  if (code == 0 && sm50_hle_vram_guard_errors() != 0) {
+    code = 3;
+    reason = "OS VRAM bounds guard corrupted";
+  }
   print_summary(stdout, code, reason);
   if (sm50_logf) { print_summary(sm50_logf, code, reason); fclose(sm50_logf); sm50_logf = NULL; }
   if (stats_f) fclose(stats_f);

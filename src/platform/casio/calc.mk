@@ -43,8 +43,11 @@ CALC_CANONICAL_OBJECTS := $(CALC_DIR)/canonical/mario_actions_moving.c.o \
 	$(CALC_DIR)/canonical/mario_actions_submerged.c.o \
 	$(CALC_DIR)/canonical/mario_actions_automatic.c.o \
 	$(CALC_DIR)/canonical/mario_actions_object.c.o \
+	$(CALC_DIR)/canonical/mario_actions_cutscene.c.o \
 	$(CALC_DIR)/canonical/mario.c.o \
 	$(CALC_DIR)/canonical/mario_step.c.o \
+	$(CALC_DIR)/canonical/object_collision.c.o \
+	$(CALC_DIR)/canonical/interaction.c.o \
 	$(CALC_DIR)/canonical/math_util.c.o $(CALC_DIR)/canonical/surface_collision.c.o \
 	$(CALC_DIR)/canonical/spawn_object.c.o \
 	$(CALC_DIR)/canonical/behavior_script.c.o \
@@ -67,7 +70,7 @@ endif
 
 calc: $(CALC_DIR)/$(CALC_NAME).g3a
 
-$(CALC_DIR)/$(CALC_NAME).elf: $(CALC_SRC) $(CALC_ASM) $(CALC_PS1_OBJECTS) $(CALC_CANONICAL_OBJECTS) $(CALC_NATIVE_BRIDGE) src/platform/casio/pack.S src/platform/casio/prizm.ld $(if $(filter 1,$(SM50_MEMDIAG)),,content/sm50.pack) src/engine/*.h
+$(CALC_DIR)/$(CALC_NAME).elf: $(CALC_SRC) $(CALC_ASM) $(CALC_PS1_OBJECTS) $(CALC_CANONICAL_OBJECTS) $(CALC_NATIVE_BRIDGE) src/platform/casio/pack.S src/platform/casio/prizm.ld src/platform/casio/display_layout.h $(if $(filter 1,$(SM50_MEMDIAG)),,content/sm50.pack) src/engine/*.h
 	@mkdir -p $(CALC_DIR)
 	$(SH_CC) $(CALC_CFLAGS) -T src/platform/casio/prizm.ld -Wl,--gc-sections -Wl,-Map,$(CALC_DIR)/$(CALC_NAME).map \
 		-DSM50_PACK_PATH='"content/sm50.pack"' -o $@ $(CALC_ASM) $(CALC_PACK_OBJ) $(CALC_SRC) $(CALC_PS1_OBJECTS) $(CALC_CANONICAL_OBJECTS) $(CALC_NATIVE_BRIDGE) -lgcc $(CALC_NATIVE_LIBS)
@@ -117,10 +120,20 @@ $(CALC_DIR)/canonical/mario_actions_object.c.o: $(CANONICAL_SM64)/src/game/mario
 	@mkdir -p $(CALC_DIR)/canonical
 	$(SH_CC) $(CALC_CANONICAL_CFLAGS) -Dset_mario_animation=sm50_set_mario_animation \
 		-Dset_mario_anim_with_accel=sm50_set_mario_anim_with_accel -c $< -o $@
+$(CALC_DIR)/canonical/mario_actions_cutscene.c.o: $(CANONICAL_SM64)/src/game/mario_actions_cutscene.c
+	@mkdir -p $(CALC_DIR)/canonical
+	$(SH_CC) $(CALC_CANONICAL_CFLAGS) -Dset_mario_animation=sm50_set_mario_animation \
+		-Dset_mario_anim_with_accel=sm50_set_mario_anim_with_accel -c $< -o $@
 $(CALC_DIR)/canonical/mario.c.o: $(CANONICAL_SM64)/src/game/mario.c
 	@mkdir -p $(CALC_DIR)/canonical
 	$(SH_CC) $(CALC_CANONICAL_CFLAGS) -c $< -o $@
 $(CALC_DIR)/canonical/mario_step.c.o: $(CANONICAL_SM64)/src/game/mario_step.c
+	@mkdir -p $(CALC_DIR)/canonical
+	$(SH_CC) $(CALC_CANONICAL_CFLAGS) -c $< -o $@
+$(CALC_DIR)/canonical/object_collision.c.o: $(CANONICAL_SM64)/src/game/object_collision.c
+	@mkdir -p $(CALC_DIR)/canonical
+	$(SH_CC) $(CALC_CANONICAL_CFLAGS) -c $< -o $@
+$(CALC_DIR)/canonical/interaction.c.o: $(CANONICAL_SM64)/src/game/interaction.c
 	@mkdir -p $(CALC_DIR)/canonical
 	$(SH_CC) $(CALC_CANONICAL_CFLAGS) -c $< -o $@
 $(CALC_DIR)/canonical/math_util.c.o: $(CANONICAL_SM64)/src/engine/math_util.c

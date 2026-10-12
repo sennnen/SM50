@@ -15,6 +15,10 @@
 #define SM50_CPU_HZ        117960000ULL   /* assumed core clock for estimates */
 #define SM50_LCD_W         396
 #define SM50_LCD_H         224
+#define SM50_OS_VRAM_W     384
+#define SM50_OS_VRAM_H     216
+#define SM50_OS_VRAM_BYTES (SM50_OS_VRAM_W * SM50_OS_VRAM_H * 2u)
+#define SM50_VRAM_GUARD_BYTES 0x4000u
 
 /* Memory map chosen for HLE (all inside casio-emu's 8 MB RAM at 0x8c000000,
  * which is also visible uncached at 0xac000000). */
@@ -84,6 +88,8 @@ void sm50_hle_init(void);
 void sm50_hle_report(FILE *f);
 const u16 *sm50_screen(void);       /* last presented frame, native RGB565 */
 void sm50_hle_vram_to_screen(void); /* copy VRAM to the emulated LCD */
+void sm50_hle_vram_guard_init(void);
+u32 sm50_hle_vram_guard_errors(void);
 
 /* emulated memory helpers */
 bool mem_ok(u32 addr);

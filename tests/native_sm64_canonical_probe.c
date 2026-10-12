@@ -52,6 +52,11 @@ extern s32 perform_ground_step(struct MarioState *m);
 extern void *sys_malloc(u32 size);
 extern struct Object *try_allocate_object(struct ObjectNode *destList,
                                           struct ObjectNode *freeList);
+extern void detect_object_collisions(void);
+extern struct Object *mario_get_collided_object(struct MarioState *m, u32 interactType);
+extern u32 interact_star_or_key(struct MarioState *m, u32 interactType, struct Object *o);
+extern s32 act_star_dance(struct MarioState *m);
+extern void native_sm64_canonical_tick(u16 buttons, u16 cameraYaw);
 extern volatile s32 native_sm64_canonical_pos_x_q8;
 extern volatile s32 native_sm64_canonical_pos_y_q8;
 extern volatile s32 native_sm64_canonical_pos_z_q8;
@@ -77,6 +82,7 @@ const BehaviorScript *gCurBhvCommand;
 struct GraphNode *sLoadedGraphNodes[128];
 struct GraphNode **gLoadedGraphNodes = sLoadedGraphNodes;
 s16 gCurrCourseNum;
+u32 gTimeStopState;
 s16 gMarioCurrentRoom;
 s16 gNumRoomedObjectsInMarioRoom;
 s16 gNumRoomedObjectsNotInMarioRoom;
@@ -91,6 +97,22 @@ struct Area *gCurrentArea;
 s16 gCurrAreaIndex;
 struct NumTimesCalled gNumCalls;
 Vec3f gVec3fZero = { 0.0f, 0.0f, 0.0f };
+struct MarioBodyState gBodyStates[2];
+u8 gLastCompletedStarNum;
+s32 gDialogResponse;
+static u32 sNativeSavedStars;
+volatile s32 native_sm64_canonical_star_collected;
+volatile s32 native_sm64_canonical_star_interaction_ok;
+volatile s32 native_sm64_canonical_runtime_ready;
+volatile s32 native_sm64_canonical_star_debug;
+volatile s32 native_sm64_canonical_star_hitbox_debug;
+static s32 sNativeStarExitRequested;
+
+void save_file_collect_star_or_key(s16 coinScore, s16 starIndex) {
+    (void)coinScore;
+    if (starIndex >= 0 && starIndex < 32) sNativeSavedStars |= 1u << starIndex;
+    native_sm64_canonical_star_collected = 1;
+}
 
 extern const BehaviorScript bhvStar[];
 extern void cur_obj_update(void);
@@ -98,9 +120,19 @@ extern void cur_obj_update(void);
 u32 save_file_get_star_flags(s32 fileIndex, s32 courseIndex) {
     (void)fileIndex;
     (void)courseIndex;
-    return 0;
+    return sNativeSavedStars;
 }
 void stop_sounds_from_source(f32 *pos) { (void)pos; }
+void drop_queued_background_music(void) {}
+void fadeout_level_music(s16 fadeTimer) { (void)fadeTimer; }
+void disable_background_sound(void) {}
+void enable_background_sound(void) {}
+void play_course_clear(void) {}
+void play_music(u8 player, u16 seqArgs, u16 fadeTimer) {
+    (void)player; (void)seqArgs; (void)fadeTimer;
+}
+void create_dialog_box_with_response(s16 dialog) { (void)dialog; }
+void save_file_do_save(s32 fileIndex) { (void)fileIndex; }
 
 void play_sound(s32 sound, f32 *pos) { (void)sound; (void)pos; }
 void stop_sound(u32 sound, f32 *pos) { (void)sound; (void)pos; }
@@ -112,27 +144,29 @@ void play_shell_music(void) {}
 void stop_shell_music(void) {}
 s32 save_file_get_total_star_count(s32 fileIndex, s32 minCourse, s32 maxCourse) {
     (void)fileIndex; (void)minCourse; (void)maxCourse;
-    return 0;
+    u32 bits = sNativeSavedStars;
+    s32 count = 0;
+    while (bits) { count += bits & 1u; bits >>= 1; }
+    return count;
 }
 void set_camera_mode(struct Camera *camera, s16 mode, s16 frames) {
     (void)camera; (void)mode; (void)frames;
 }
-void mario_stop_riding_and_holding(struct MarioState *m) { (void)m; }
-void mario_drop_held_object(struct MarioState *m) { (void)m; }
-void mario_stop_riding_object(struct MarioState *m) { (void)m; }
-u32 mario_check_object_grab(struct MarioState *m) { (void)m; return 0; }
-struct Object *mario_get_collided_object(struct MarioState *m, u32 type) {
-    (void)m; (void)type;
-    return NULL;
-}
-void mario_grab_used_object(struct MarioState *m) { (void)m; }
-void mario_throw_held_object(struct MarioState *m) { (void)m; }
-void mario_blow_off_cap(struct MarioState *m, f32 speed) { (void)m; (void)speed; }
+void save_file_set_cap_pos(s16 x, s16 y, s16 z) { (void)x; (void)y; (void)z; }
 void *segmented_to_virtual(const void *address) { return (void *)address; }
 const BehaviorScript bhvJumpingBox[] = { 0 };
 const BehaviorScript bhvKoopaShellUnderwater[] = { 0 };
 const BehaviorScript bhvTree[] = { 0 };
 const BehaviorScript bhvGiantPole[] = { 0 };
+/* Placeholder behavior pointers used by unrelated interaction/action paths;
+   the active Battlefield star uses the generated canonical bhvStar script. */
+const BehaviorScript bhvStarKeyCollectionPuffSpawner[] = { 0 };
+const BehaviorScript bhvCelebrationStar[] = { 0 };
+const BehaviorScript bhvCarrySomething3[] = { 0 };
+const BehaviorScript bhvCarrySomething4[] = { 0 };
+const BehaviorScript bhvCarrySomething5[] = { 0 };
+const BehaviorScript bhvNormalCap[] = { 0 };
+const BehaviorScript bhvBowser[] = { 0 };
 const BehaviorScript bhvHauntedChair[] = { 0 };
 const BehaviorScript bhvMadPiano[] = { 0 };
 const BehaviorScript bhvMessagePanel[] = { 0 };
@@ -144,7 +178,8 @@ void geo_obj_init_animation(struct GraphNodeObject *node, struct Animation **ani
 }
 u8 gSpecialTripleJump;
 s16 level_trigger_warp(struct MarioState *m, s32 operation) {
-    (void)m; (void)operation;
+    (void)m;
+    if (operation == WARP_OP_STAR_EXIT) sNativeStarExitRequested = 1;
     return 0;
 }
 void load_level_init_text(u32 arg) { (void)arg; }
@@ -200,6 +235,9 @@ static void initialize_native_object_pool(void) {
     if (!sNativeMarioObject) return;
     sNativeMarioObject->activeFlags = ACTIVE_FLAG_ACTIVE | ACTIVE_FLAG_UNK8;
     sNativeMarioObject->parentObj = sNativeMarioObject;
+    sNativeMarioObject->hitboxRadius = 50.0f;
+    sNativeMarioObject->hitboxHeight = 160.0f;
+    sNativeMarioObject->oIntangibleTimer = 0;
     gMarioObject = sNativeMarioObject;
     sNativeObjectPoolInitialized = 1;
 }
@@ -256,6 +294,7 @@ static s32 initialize_native_mario(const s32 spawn[3]) {
     if (!floor) return 0;
 
     memset(&sNativeMario, 0, sizeof(sNativeMario));
+    memset(gBodyStates, 0, sizeof(gBodyStates));
     initialize_native_object_pool();
     if (!sNativeMarioObject ||
         gObjectLists[OBJ_LIST_PLAYER].next != (struct ObjectNode *)sNativeMarioObject ||
@@ -265,6 +304,10 @@ static s32 initialize_native_mario(const s32 spawn[3]) {
            sizeof(*sNativeMarioObject) - sizeof(struct ObjectNode));
     sNativeMarioObject->activeFlags = ACTIVE_FLAG_ACTIVE | ACTIVE_FLAG_UNK8;
     sNativeMarioObject->parentObj = sNativeMarioObject;
+    sNativeMarioObject->hitboxRadius = 50.0f;
+    sNativeMarioObject->hitboxHeight = 160.0f;
+    sNativeMarioObject->hitboxDownOffset = 0.0f;
+    sNativeMarioObject->oIntangibleTimer = 0;
     memset(&sNativeArea, 0, sizeof(sNativeArea));
     memset(&sNativeCamera, 0, sizeof(sNativeCamera));
     memset(&sNativeController, 0, sizeof(sNativeController));
@@ -282,6 +325,7 @@ static s32 initialize_native_mario(const s32 spawn[3]) {
     sNativeMario.waterLevel = -11000;
     sNativeMario.area = &sNativeArea;
     sNativeMario.marioObj = sNativeMarioObject;
+    sNativeMario.marioBodyState = &gBodyStates[0];
     sNativeMario.controller = &sNativeController;
     sNativePreviousButtons = 0;
     gMarioState = &sNativeMario;
@@ -306,6 +350,9 @@ static s32 initialize_native_mario(const s32 spawn[3]) {
         sNativeStarObject->oFaceAnglePitch = transform[3];
         sNativeStarObject->oFaceAngleYaw = transform[4];
         sNativeStarObject->oFaceAngleRoll = transform[5];
+        sNativeStarObject->header.gfx.scale[0] = 1.0f;
+        sNativeStarObject->header.gfx.scale[1] = 1.0f;
+        sNativeStarObject->header.gfx.scale[2] = 1.0f;
         sNativeStarObject->oBhvParams = params;
         sNativeStarObject->curBhvCommand = bhvStar;
         gCurrentObject = sNativeStarObject;
@@ -457,6 +504,44 @@ int native_sm64_canonical_probe(void) {
     /* The 30-tick diagnostic is not the player's start state. Restore the
      * actual ROM spawn so gameplay begins with canonical zero velocity. */
     if (!initialize_native_mario(spawn)) return 0;
+
+    /* Exercise the full ROM-star collision path once at startup: canonical
+       behavior setup -> canonical hitbox detection -> original star handler
+       -> canonical star-deletion behavior. Then rebuild the object pool so
+       this self-check cannot award a star or consume a gameplay object slot. */
+    native_sm64_canonical_runtime_ready = 0;
+    sNativeSavedStars = 0;
+    native_sm64_canonical_star_collected = 0;
+    native_sm64_canonical_star_debug = 0;
+    native_sm64_canonical_star_hitbox_debug = 0;
+    sNativeMario.pos[0] = sNativeStarObject->oPosX;
+    sNativeMario.pos[1] = sNativeStarObject->oPosY;
+    sNativeMario.pos[2] = sNativeStarObject->oPosZ;
+    sNativeMario.action = ACT_IDLE;
+    sNativeMario.floor = NULL;
+    sNativeMario.floorHeight = find_floor(sNativeMario.pos[0],
+        sNativeMario.pos[1] + 200.0f, sNativeMario.pos[2], &sNativeMario.floor);
+    native_sm64_canonical_tick(0, 0);
+    s32 starAction = sNativeMario.action == ACT_STAR_DANCE_EXIT ||
+                     sNativeMario.action == ACT_STAR_DANCE_NO_EXIT;
+    s32 starSaved = (sNativeSavedStars & (1u << 5)) != 0;
+    native_sm64_canonical_tick(0, 0);
+    native_sm64_canonical_star_interaction_ok = starAction && starSaved
+        && !(sNativeStarObject->activeFlags & ACTIVE_FLAG_ACTIVE);
+
+    sNativeObjectPoolInitialized = 0;
+    sNativeMarioObject = NULL;
+    sNativeStarObject = NULL;
+    memset(gObjectPool, 0, sizeof(gObjectPool));
+    clear_object_lists(gObjectListArray);
+    sNativeSavedStars = 0;
+    native_sm64_canonical_star_collected = 0;
+    sNativePreviousButtons = 0;
+    gTimeStopState = 0;
+    sNativeStarExitRequested = 0;
+    if (!initialize_native_mario(spawn)) return 0;
+    native_sm64_canonical_runtime_ready = 1;
+    pass = pass && native_sm64_canonical_star_interaction_ok;
     return pass;
 }
 
@@ -476,10 +561,54 @@ void native_sm64_canonical_tick(u16 buttons, u16 cameraYaw) {
     sNativeController.stickX = (f32)iz * 64.0f;
     sNativeController.stickY = (f32)ix * 64.0f;
     sNativeController.stickMag = (ix || iz) ? 64.0f : 0.0f;
+
+    /* Run the original ROM object's behavior and hitbox pass before Mario
+       consumes the resulting interaction flags. */
+    sNativeMarioObject->oPosX = sNativeMario.pos[0];
+    sNativeMarioObject->oPosY = sNativeMario.pos[1];
+    sNativeMarioObject->oPosZ = sNativeMario.pos[2];
+    sNativeMarioObject->oFaceAngleYaw = sNativeMario.faceAngle[1];
+    if (sNativeStarObject && (sNativeStarObject->activeFlags & ACTIVE_FLAG_ACTIVE)) {
+        gCurrentObject = sNativeStarObject;
+        cur_obj_update();
+    }
+    gCurrentObject = sNativeMarioObject;
+    detect_object_collisions();
+    if (!native_sm64_canonical_runtime_ready && sNativeStarObject) {
+        native_sm64_canonical_star_debug =
+            (sNativeMarioObject->numCollidedObjs & 0xff)
+            | ((sNativeMarioObject->collidedObjInteractTypes & 0xff) << 8)
+            | ((sNativeStarObject->oInteractType & 0xff) << 16);
+        native_sm64_canonical_star_hitbox_debug =
+            ((sNativeMarioObject->hitboxRadius > 0.0f) ? 1 : 0)
+            | ((sNativeMarioObject->hitboxHeight > 0.0f) ? 2 : 0)
+            | ((sNativeStarObject->hitboxRadius > 0.0f) ? 4 : 0)
+            | ((sNativeStarObject->hitboxHeight > 0.0f) ? 8 : 0)
+            | ((sNativeStarObject->activeFlags & ACTIVE_FLAG_ACTIVE) ? 16 : 0);
+    }
+
     update_mario_inputs(&sNativeMario);
+    if (!(sNativeMario.action & ACT_FLAG_INTANGIBLE) &&
+        (sNativeMario.collidedObjInteractTypes & INTERACT_STAR_OR_KEY)) {
+        struct Object *star = mario_get_collided_object(&sNativeMario, INTERACT_STAR_OR_KEY);
+        if (star && !(star->oInteractStatus & INT_STATUS_INTERACTED)) {
+            gCurrentObject = star;
+            (void)interact_star_or_key(&sNativeMario, INTERACT_STAR_OR_KEY, star);
+            gCurrentObject = sNativeMarioObject;
+        }
+    }
     if (sNativeMario.floor) {
         s32 inLoop = TRUE;
         while (inLoop) {
+            if (sNativeMario.action == ACT_STAR_DANCE_EXIT ||
+                sNativeMario.action == ACT_STAR_DANCE_NO_EXIT) {
+                inLoop = act_star_dance(&sNativeMario);
+                if (sNativeStarExitRequested) {
+                    sNativeStarExitRequested = 0;
+                    set_mario_action(&sNativeMario, ACT_IDLE, 0);
+                }
+                continue;
+            }
             switch (sNativeMario.action & ACT_GROUP_MASK) {
                 case ACT_GROUP_STATIONARY:
                     inLoop = mario_execute_stationary_action(&sNativeMario); break;
@@ -497,14 +626,6 @@ void native_sm64_canonical_tick(u16 buttons, u16 cameraYaw) {
                     inLoop = FALSE; break;
             }
         }
-    }
-
-    /* Execute the ROM-placed star through the canonical behavior interpreter
-       and original bhvStar bytecode/callbacks once per game tick. */
-    if (sNativeStarObject) {
-        gCurrentObject = sNativeStarObject;
-        cur_obj_update();
-        gCurrentObject = sNativeMarioObject;
     }
 
     native_sm64_canonical_pos_x_q8 = (s32)(sNativeMario.pos[0] * 256.0f);

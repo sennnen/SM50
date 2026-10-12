@@ -3,6 +3,7 @@
 #include "../../engine/game.h"
 #include "../../engine/gfx.h"
 #include "../../engine/world.h"
+#include "display_layout.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -22,10 +23,10 @@ void emu_debug_print(const char *s);
 #define DBG(...) do { } while (0)
 #endif
 
-#define RW 198
-#define RH 112
-#define LCD_W 396
-#define LCD_H 224
+#define RW SM50_RENDER_2X_W
+#define RH SM50_RENDER_2X_H
+#define LCD_W SM50_OS_VRAM_W
+#define LCD_H SM50_OS_VRAM_H
 
 static u16 sFb[RW * RH] __attribute__((aligned(4)));
 static u16 sZb[RW * RH] __attribute__((aligned(4)));
@@ -57,6 +58,11 @@ extern volatile s32 native_sm64_canonical_pos_z_q8;
 extern volatile u16 native_sm64_canonical_yaw;
 extern volatile s32 native_sm64_canonical_anim_index;
 extern volatile s32 native_sm64_canonical_speed_q12;
+extern volatile s32 native_sm64_canonical_star_collected;
+extern volatile s32 native_sm64_canonical_star_interaction_ok;
+extern volatile s32 native_sm64_canonical_runtime_ready;
+extern volatile s32 native_sm64_canonical_star_debug;
+extern volatile s32 native_sm64_canonical_star_hitbox_debug;
 #endif
 extern const u8 rom_image_end[];
 
@@ -77,6 +83,21 @@ void sm50_native_publish_mario(s32 x, s32 y, s32 z, u16 yaw, s32 speed,
     if (gGame.p.anim != anim) { gGame.p.anim = anim; gGame.p.anim_frame = 0; }
     else gGame.p.anim_frame += 16;
     gGame.p.safe_x = x; gGame.p.safe_y = y; gGame.p.safe_z = z;
+#ifdef SM50_CANONICAL_PROBE
+    static int sStarReported;
+    if (native_sm64_canonical_runtime_ready &&
+        native_sm64_canonical_star_collected && !sStarReported) {
+        sStarReported = 1;
+        for (int i = 0; i < gLevel.n_objs; i++) {
+            Obj *o = &gLevel.objs[i];
+            if (o->type == OBJ_STAR && o->x == 1550 && o->y == 1200 && o->z == 300)
+                o->active = 0;
+        }
+        gGame.p.stars++;
+        strncpy(gGame.msg, "STAR COLLECTED", sizeof(gGame.msg) - 1);
+        gGame.msg_timer = 120;
+    }
+#endif
 }
 #endif
 
@@ -139,14 +160,14 @@ static u16 read_buttons(void) {
     return b;
 }
 
-static int sRes = 0; /* 0: 198x112 upscaled 2x, 1: 132x74 upscaled 3x */
+static int sRes = 0; /* 0: 192x108 upscaled 2x, 1: 128x72 upscaled 3x */
 
 static void blit3x(void) {
     u16 *vram = (u16 *)GetVRAMAddress();
-    const int w = 132, h = 74;
+    const int w = SM50_RENDER_3X_W, h = SM50_RENDER_3X_H;
     const u16 *src = sFb;
     for (int y = 0; y < h; y++) {
-        u16 *r0 = vram + (y * 3 + 1) * LCD_W;
+        u16 *r0 = vram + (y * 3) * LCD_W;
         for (int x = 0; x < w; x++) {
             u16 c = *src++;
             r0[x * 3] = r0[x * 3 + 1] = r0[x * 3 + 2] = c;
@@ -158,7 +179,7 @@ static void blit3x(void) {
 
 static void set_res(int r) {
     sRes = r;
-    if (r) { gfx_resize(132, 74); memset(GetVRAMAddress(), 0, LCD_W * LCD_H * 2); }
+    if (r) { gfx_resize(SM50_RENDER_3X_W, SM50_RENDER_3X_H); memset(GetVRAMAddress(), 0, SM50_OS_VRAM_BYTES); }
     else gfx_resize(RW, RH);
     gfx_set_perspective(50, 64, 16000);
 }
@@ -225,6 +246,12 @@ int main(void) {
         native_sm64_canonical_ground_step,
         native_sm64_canonical_moved_x_q8,
         native_sm64_canonical_moved_z_q8);
+    DBG("SM64 canonical star interaction %s",
+        native_sm64_canonical_star_interaction_ok ? "PASS" : "FAIL");
+    DBG("star collision debug=%d hitboxes=%d saved=%d",
+        native_sm64_canonical_star_debug,
+        native_sm64_canonical_star_hitbox_debug,
+        native_sm64_canonical_star_collected);
     if (canonical_probe_ok) {
         /* Publish canonical movement state to the existing renderer. */
         sm50_native_publish_mario(native_sm64_canonical_pos_x_q8,

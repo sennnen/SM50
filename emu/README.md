@@ -183,7 +183,7 @@ are allowed.
 | `0x08100000-0x0817FFFF` | **512 KB** static RAM window (casio-emu aliases it to physical `0x8C160000`). The test add-in's linker script puts .data and .bss here |
 | `0x8C000000-0x8C7FFFFF` | 8 MB RAM (also uncached at `0xAC000000`). It is filled with `0x55` at start, so uninitialised memory reads as 0x55 bytes |
 | `0x8C080000` | initial r15. The stack grows down toward `0x8C000000` (512 KB); the summary reports the high-water mark |
-| `0xAC200000` (`0x8C200000`) | VRAM, 396x224 RGB565 big-endian, 177408 bytes |
+| `0xAC200000` (`0x8C200000`) | OS VRAM, 384x216 RGB565 big-endian, 165888 bytes; emulator maps it to the centered 384x216 LCD area |
 | `0xAC240000` | secondary VRAM (SaveVRAM_1/LoadVRAM_1) |
 | `0x8C300000` | sys_malloc arena (`--heap-kb`, default 256 KB, max 4 MB) |
 | `0xE5200000` | 4 KB ILRAM; also XRAM `0xE5000000`, YRAM `0xE5010000` (8 KB each) |

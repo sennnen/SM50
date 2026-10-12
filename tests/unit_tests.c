@@ -3,6 +3,7 @@
 #include "../src/engine/gfx.h"
 #include "../src/engine/world.h"
 #include "../src/engine/fixmath.h"
+#include "../src/platform/casio/display_layout.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -215,10 +216,34 @@ static void test_collision(void) {
     CHECK(col_resolve_walls(&x, 150, &z, 50, NULL) == 0, "no wall push when far");
 }
 
+static void test_display_bounds(void) {
+    CHECK(SM50_OS_VRAM_BYTES == 162 * 1024, "OS VRAM is 384x216 RGB565 (%u bytes)",
+          (unsigned)SM50_OS_VRAM_BYTES);
+    CHECK(SM50_VRAM_2X_LAST_PIXEL == SM50_OS_VRAM_PIXELS - 1,
+          "2x final write lands on final VRAM pixel (%u)",
+          (unsigned)SM50_VRAM_2X_LAST_PIXEL);
+    CHECK(SM50_VRAM_3X_LAST_PIXEL == SM50_OS_VRAM_PIXELS - 1,
+          "3x final write lands on final VRAM pixel (%u)",
+          (unsigned)SM50_VRAM_3X_LAST_PIXEL);
+    for (int y = 0; y < SM50_RENDER_2X_H; y++) {
+        for (int x = 0; x < SM50_RENDER_2X_W; x++) {
+            u32 last = ((u32)y * 2 + 1) * SM50_OS_VRAM_W + (u32)x * 2 + 1;
+            CHECK(last < SM50_OS_VRAM_PIXELS, "2x blit pixel (%d,%d) is in VRAM", x, y);
+        }
+    }
+    for (int y = 0; y < SM50_RENDER_3X_H; y++) {
+        for (int x = 0; x < SM50_RENDER_3X_W; x++) {
+            u32 last = ((u32)y * 3 + 2) * SM50_OS_VRAM_W + (u32)x * 3 + 2;
+            CHECK(last < SM50_OS_VRAM_PIXELS, "3x blit pixel (%d,%d) is in VRAM", x, y);
+        }
+    }
+}
+
 int main(void) {
     test_math();
     test_render();
     test_collision();
+    test_display_bounds();
     printf("%d/%d checks passed\n", checks - fails, checks);
     return fails ? 1 : 0;
 }

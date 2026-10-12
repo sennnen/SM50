@@ -131,8 +131,12 @@ if os.path.exists(emu) and os.path.exists(g3a):
              "--frame-stats", os.path.join(eo, "frames.csv"), g3a], timeout=400)
     open(os.path.join(eo, "summary.txt"), "w").write(r.stdout + r.stderr)
     ok = r.returncode == 0 and "frames presented  : 100" in r.stdout
+    guard_ok = "OS VRAM guard     : 0/4096 guard words corrupted (384x216 surface)" in r.stdout
+    ok = ok and guard_ok
     fps = re.search(r"est\. HW fps\s*:\s*([\d.]+)", r.stdout)
     record("emulator: add-in boots and presents 100 frames", ok, f"est. {fps.group(1) if fps else '?'} fps (instruction-count estimate)")
+    record("emulator: writes stay within documented 384x216 OS VRAM", guard_ok,
+           "16 KiB canary after 162 KiB VRAM remains intact" if guard_ok else "VRAM bounds canary changed")
     try:
         def read_emulator_png(path):
             # The bundled emulator emits RGB8 PNGs with filter type zero.
@@ -170,8 +174,10 @@ if os.path.exists(emu) and os.path.exists(g3a):
              "--max-wall", "300", g3a_synth], timeout=400)
     open(os.path.join(eo, "summary-synth.txt"), "w").write(r.stdout + r.stderr)
     fps = re.search(r"est\. HW fps\s*:\s*([\d.]+)", r.stdout)
+    guard_ok = "OS VRAM guard     : 0/4096 guard words corrupted (384x216 surface)" in r.stdout
     record("emulator: engine + ROM-derived pack (synthetic ROM) runs on the CG50 target",
-           r.returncode == 0 and "frames presented  : 80" in r.stdout, "est. %s fps" % (fps.group(1) if fps else "?"))
+           r.returncode == 0 and "frames presented  : 80" in r.stdout and guard_ok,
+           "est. %s fps; VRAM canary %s" % (fps.group(1) if fps else "?", "intact" if guard_ok else "changed"))
 else:
     record("emulator run", False, "emulator or g3a missing")
 
