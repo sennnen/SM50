@@ -28,3 +28,19 @@ int sm50_native_rom_data(s32 spawn[4], const u8 **collision, u32 *size) {
     *collision = colv;
     return 1;
 }
+
+int sm50_native_find_sm64_spawn(u32 behavior, s16 transform[6], u32 *params) {
+    for (int i = 0; i < gLevel.n_sm64_spawns; i++) {
+        const Sm64Spawn *spawn = &gLevel.sm64_spawns[i];
+        if (spawn->behavior_addr != behavior) continue;
+        transform[0] = spawn->x;
+        transform[1] = spawn->y;
+        transform[2] = spawn->z;
+        transform[3] = spawn->pitch;
+        transform[4] = spawn->yaw;
+        transform[5] = spawn->roll;
+        *params = spawn->behavior_param;
+        return 1;
+    }
+    return 0;
+}

@@ -8,6 +8,11 @@ CALC_CFLAGS := -m4-nofpu -mb -O2 -ffreestanding -nostdlib -fno-pie -fno-builtin-
 CALC_SRC := $(ENGINE) src/platform/casio/main.c src/platform/casio/libc_min.c
 CALC_ASM := src/platform/casio/crt0.S src/platform/casio/syscalls.S
 CALC_NAME ?= SM50
+ifeq ($(SM50_MEMDIAG),1)
+CALC_SRC := src/engine/fixmath.c src/engine/tables.c src/engine/gfx.c \
+	src/platform/casio/memory_diagnostic.c src/platform/casio/libc_min.c
+CALC_EXTRA += -DSM50_MEMORY_DIAGNOSTIC
+endif
 # Optional native recompilation probe. It builds a single Q12 ground-slide
 # update from the local PS1 source port into an alternate add-in, without
 # changing the normal SM50 target. Set PS1_PORT to the local reference tree.
@@ -42,6 +47,10 @@ CALC_CANONICAL_OBJECTS := $(CALC_DIR)/canonical/mario_actions_moving.c.o \
 	$(CALC_DIR)/canonical/mario_step.c.o \
 	$(CALC_DIR)/canonical/math_util.c.o $(CALC_DIR)/canonical/surface_collision.c.o \
 	$(CALC_DIR)/canonical/spawn_object.c.o \
+	$(CALC_DIR)/canonical/behavior_script.c.o \
+	$(CALC_DIR)/canonical/object_helpers.c.o \
+	$(CALC_DIR)/canonical/obj_behaviors.c.o \
+	$(CALC_DIR)/canonical/behavior_subset.c.o \
 	$(CALC_DIR)/canonical/native_sm64_canonical_probe.c.o
 CALC_NATIVE_BRIDGE := $(CALC_DIR)/native/native_sm64_collision_bridge.c.o
 CALC_NATIVE_LIBS := -lm
@@ -58,7 +67,7 @@ endif
 
 calc: $(CALC_DIR)/$(CALC_NAME).g3a
 
-$(CALC_DIR)/$(CALC_NAME).elf: $(CALC_SRC) $(CALC_ASM) $(CALC_PS1_OBJECTS) $(CALC_CANONICAL_OBJECTS) $(CALC_NATIVE_BRIDGE) src/platform/casio/pack.S src/platform/casio/prizm.ld content/sm50.pack src/engine/*.h
+$(CALC_DIR)/$(CALC_NAME).elf: $(CALC_SRC) $(CALC_ASM) $(CALC_PS1_OBJECTS) $(CALC_CANONICAL_OBJECTS) $(CALC_NATIVE_BRIDGE) src/platform/casio/pack.S src/platform/casio/prizm.ld $(if $(filter 1,$(SM50_MEMDIAG)),,content/sm50.pack) src/engine/*.h
 	@mkdir -p $(CALC_DIR)
 	$(SH_CC) $(CALC_CFLAGS) -T src/platform/casio/prizm.ld -Wl,--gc-sections -Wl,-Map,$(CALC_DIR)/$(CALC_NAME).map \
 		-DSM50_PACK_PATH='"content/sm50.pack"' -o $@ $(CALC_ASM) $(CALC_PACK_OBJ) $(CALC_SRC) $(CALC_PS1_OBJECTS) $(CALC_CANONICAL_OBJECTS) $(CALC_NATIVE_BRIDGE) -lgcc $(CALC_NATIVE_LIBS)
@@ -122,6 +131,19 @@ $(CALC_DIR)/canonical/surface_collision.c.o: $(CANONICAL_SM64)/src/engine/surfac
 	$(SH_CC) $(CALC_CANONICAL_CFLAGS) -c $< -o $@
 $(CALC_DIR)/canonical/spawn_object.c.o: $(CANONICAL_SM64)/src/game/spawn_object.c
 	@mkdir -p $(CALC_DIR)/canonical
+	$(SH_CC) $(CALC_CANONICAL_CFLAGS) -c $< -o $@
+$(CALC_DIR)/canonical/behavior_script.c.o: $(CANONICAL_SM64)/src/engine/behavior_script.c
+	@mkdir -p $(CALC_DIR)/canonical
+	$(SH_CC) $(CALC_CANONICAL_CFLAGS) -c $< -o $@
+$(CALC_DIR)/canonical/object_helpers.c.o: $(CANONICAL_SM64)/src/game/object_helpers.c
+	@mkdir -p $(CALC_DIR)/canonical
+	$(SH_CC) $(CALC_CANONICAL_CFLAGS) -c $< -o $@
+$(CALC_DIR)/canonical/obj_behaviors.c.o: $(CANONICAL_SM64)/src/game/obj_behaviors.c
+	@mkdir -p $(CALC_DIR)/canonical
+	$(SH_CC) $(CALC_CANONICAL_CFLAGS) -c $< -o $@
+$(CALC_DIR)/canonical/behavior_subset.c: $(CANONICAL_SM64)/data/behavior_data.c tools/gen_native_behavior_subset.py
+	python3 tools/gen_native_behavior_subset.py --source $(CANONICAL_SM64) --output $@ bhvStar
+$(CALC_DIR)/canonical/behavior_subset.c.o: $(CALC_DIR)/canonical/behavior_subset.c
 	$(SH_CC) $(CALC_CANONICAL_CFLAGS) -c $< -o $@
 $(CALC_DIR)/canonical/native_sm64_canonical_probe.c.o: tests/native_sm64_canonical_probe.c
 	@mkdir -p $(CALC_DIR)/canonical

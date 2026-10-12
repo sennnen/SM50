@@ -32,6 +32,7 @@ enum {
 };
 
 extern s32 sm50_native_rom_data(s32 spawn[4], const u8 **collision, u32 *size);
+extern s32 sm50_native_find_sm64_spawn(u32 behavior, s16 transform[6], u32 *params);
 extern void update_walking_speed(struct MarioState *m);
 extern void update_mario_inputs(struct MarioState *m);
 extern s32 mario_execute_moving_action(struct MarioState *m);
@@ -72,6 +73,15 @@ s16 gCameraMovementFlags;
 struct MarioState *gMarioState;
 struct Object *gMarioObject;
 struct Object *gCurrentObject;
+const BehaviorScript *gCurBhvCommand;
+struct GraphNode *sLoadedGraphNodes[128];
+struct GraphNode **gLoadedGraphNodes = sLoadedGraphNodes;
+s16 gCurrCourseNum;
+s16 gMarioCurrentRoom;
+s16 gNumRoomedObjectsInMarioRoom;
+s16 gNumRoomedObjectsNotInMarioRoom;
+RoomData gDoorAdjacentRooms[60][2];
+Vec3s gVec3sZero = { 0, 0, 0 };
 struct Object gObjectPool[SM50_NATIVE_OBJECT_POOL_CAPACITY];
 struct ObjectNode gObjectListArray[16];
 struct ObjectNode *gObjectLists;
@@ -81,6 +91,16 @@ struct Area *gCurrentArea;
 s16 gCurrAreaIndex;
 struct NumTimesCalled gNumCalls;
 Vec3f gVec3fZero = { 0.0f, 0.0f, 0.0f };
+
+extern const BehaviorScript bhvStar[];
+extern void cur_obj_update(void);
+
+u32 save_file_get_star_flags(s32 fileIndex, s32 courseIndex) {
+    (void)fileIndex;
+    (void)courseIndex;
+    return 0;
+}
+void stop_sounds_from_source(f32 *pos) { (void)pos; }
 
 void play_sound(s32 sound, f32 *pos) { (void)sound; (void)pos; }
 void stop_sound(u32 sound, f32 *pos) { (void)sound; (void)pos; }
@@ -113,6 +133,15 @@ const BehaviorScript bhvJumpingBox[] = { 0 };
 const BehaviorScript bhvKoopaShellUnderwater[] = { 0 };
 const BehaviorScript bhvTree[] = { 0 };
 const BehaviorScript bhvGiantPole[] = { 0 };
+const BehaviorScript bhvHauntedChair[] = { 0 };
+const BehaviorScript bhvMadPiano[] = { 0 };
+const BehaviorScript bhvMessagePanel[] = { 0 };
+void geo_obj_init(struct GraphNodeObject *node, void *model, Vec3f pos, Vec3s angle) {
+    (void)node; (void)model; (void)pos; (void)angle;
+}
+void geo_obj_init_animation(struct GraphNodeObject *node, struct Animation **anim) {
+    (void)node; (void)anim;
+}
 u8 gSpecialTripleJump;
 s16 level_trigger_warp(struct MarioState *m, s32 operation) {
     (void)m; (void)operation;
@@ -140,6 +169,8 @@ static struct Surface *sNativeSurfaces;
 static struct SurfaceNode *sNativeNodes;
 static struct MarioState sNativeMario;
 static struct Object *sNativeMarioObject;
+static struct Object *sNativeStarObject;
+static s32 sNativeStarProbeOK;
 static struct Area sNativeArea;
 static struct Camera sNativeCamera;
 static struct Controller sNativeController;
@@ -258,6 +289,34 @@ static s32 initialize_native_mario(const s32 spawn[3]) {
     gCurrentObject = sNativeMarioObject;
     gCurrentArea = &sNativeArea;
     gCurrAreaIndex = 1;
+    if (!sNativeStarObject) {
+        s16 transform[6];
+        u32 params;
+        if (!sm50_native_find_sm64_spawn(0x13003E3C, transform, &params)) return 0;
+        sNativeStarObject = try_allocate_object(&gObjectLists[OBJ_LIST_LEVEL], &gFreeObjectList);
+        if (!sNativeStarObject) return 0;
+        sNativeStarObject->activeFlags = ACTIVE_FLAG_ACTIVE;
+        sNativeStarObject->parentObj = sNativeMarioObject;
+        sNativeStarObject->oPosX = transform[0];
+        sNativeStarObject->oPosY = transform[1];
+        sNativeStarObject->oPosZ = transform[2];
+        sNativeStarObject->oHomeX = transform[0];
+        sNativeStarObject->oHomeY = transform[1];
+        sNativeStarObject->oHomeZ = transform[2];
+        sNativeStarObject->oFaceAnglePitch = transform[3];
+        sNativeStarObject->oFaceAngleYaw = transform[4];
+        sNativeStarObject->oFaceAngleRoll = transform[5];
+        sNativeStarObject->oBhvParams = params;
+        sNativeStarObject->curBhvCommand = bhvStar;
+        gCurrentObject = sNativeStarObject;
+        cur_obj_update();
+        sNativeStarProbeOK = sNativeStarObject->oInteractType == INTERACT_STAR_OR_KEY
+            && sNativeStarObject->oFaceAngleYaw == (s16)(transform[4] + 0x800)
+            && sNativeStarObject->oRoom == -1
+            && gObjectLists[OBJ_LIST_LEVEL].next == (struct ObjectNode *)sNativeStarObject;
+    }
+    gCurrentObject = sNativeMarioObject;
+    if (!sNativeStarProbeOK) return 0;
     native_sm64_canonical_pos_x_q8 = (s32)(spawn[0] * 256);
     native_sm64_canonical_pos_y_q8 = (s32)(floorHeight * 256.0f);
     native_sm64_canonical_pos_z_q8 = (s32)(spawn[2] * 256);
@@ -438,6 +497,14 @@ void native_sm64_canonical_tick(u16 buttons, u16 cameraYaw) {
                     inLoop = FALSE; break;
             }
         }
+    }
+
+    /* Execute the ROM-placed star through the canonical behavior interpreter
+       and original bhvStar bytecode/callbacks once per game tick. */
+    if (sNativeStarObject) {
+        gCurrentObject = sNativeStarObject;
+        cur_obj_update();
+        gCurrentObject = sNativeMarioObject;
     }
 
     native_sm64_canonical_pos_x_q8 = (s32)(sNativeMario.pos[0] * 256.0f);

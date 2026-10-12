@@ -96,6 +96,53 @@ only; physical calculator heap capacity remains unknown.
 The link arrays need headroom for dynamic surfaces and alternate levels, so
 5,340 is only the measured Battlefield static-collision count.
 
+## fx-CG50 RAM and clock headroom
+
+The 320 KiB `.data + .bss` limit is a project guardrail, not a measurement of
+all SDRAM available to an add-in. The ordinary add-in image and the current
+startup/stack arrangement use the `0x08100000` window. The calculator's
+separate SDRAM map starts at `0x8c000000`; it is not made available to
+`sys_malloc` merely because physical RAM exists there. The emulator's
+256 KiB heap at `0x8c300000` is its own test arena and says nothing about the
+calculator's OS heap or ownership of that address on hardware.
+
+Community reverse-engineering reports that roughly 6 MiB beginning at
+`0x8c200000` is often usable by CG50 add-ins. The same reports warn that the
+region is outside the normal OS allocator, that future OS versions could use
+it, and recommend checking that it is zero before writing. The built-in
+Python environment has reportedly used part of this region. Treat this as
+promising, version-dependent capacity, not guaranteed free memory. See
+[WikiPrizm's process and heap notes](https://cemetech.gitlab.io/wikiprizm/OS_Information/Processes/)
+and the [developer discussion of the 8 MiB RAM map](https://www.cemetech.net/forum/viewtopic.php?t=17679).
+
+`make calc-memory-diagnostic` builds a standalone `SM50MemoryDiagnostic.g3a`.
+It measures normal OS allocations in 4 KiB blocks, reads the CPG frequency
+register, and measures the framebuffer blit plus OS display call. F1 performs
+a read-only zero scan of `0x8c200000..0x8c7fffff`; it only proceeds to sparse
+write/read/restore samples if the whole range reads as zero. It never changes
+clock registers. This is a cautious first probe, not proof that every byte is
+available or safe across OS versions. Back up the calculator before running
+it. It has been built and run through the software emulator's normal path;
+the emulator does not emulate this extended RAM region or actual clocks, so
+hardware results remain unmeasured.
+
+The stock clock reference lists F1 as 116 MHz CPU / 58 MHz bus, F4 as 232 /
+58 MHz, and F5 as 189 / 94 MHz on the CG50. These are community clock presets,
+not measurements from this project. The bus-limited F5 preset may outperform
+F4 for framebuffer and SDRAM traffic; the compute-heavy renderer may favor
+F4. We will compare both only after the calculator diagnostic can report
+real-device results. The register read is diagnostic evidence; this build
+does not switch clock modes. See [gint's CG50 clock reference](https://classpaddev.github.io/wiki/gint/reference/kernel/clock/).
+
+gint provides established clock, timer, keyboard, display, and custom-heap
+interfaces, but it does not add CPU frequency or physical RAM. The project
+toolchain has fxSDK support but no installed `libgint-cg`, so a gint build
+comparison is not currently available locally. The current direct syscall
+platform is already small; a migration is justified only if a gint prototype
+measures a concrete memory, display, or timing benefit. Neither path changes
+the SH4 no-FPU constraint: floating-point still needs software support, while
+fixed-point is appropriate for hot movement/rendering paths.
+
 ## SH4 experiment
 
 `make calc-native-probe` compiles PS1-port game source as SH4 big-endian,

@@ -32,6 +32,10 @@ calc-native-probe:
 calc-canonical-probe:
 	$(MAKE) calc CALC_NAME=SM64CanonicalProbe SM50_CANONICAL_PROBE=1 CALC_EXTRA='-DSM50_CANONICAL_PROBE -DSM50_EMU_DEBUG'
 
+# Standalone hardware diagnostic. It does not change the game add-in.
+calc-memory-diagnostic:
+	$(MAKE) calc CALC_NAME=SM50MemoryDiagnostic SM50_MEMDIAG=1
+
 test: host content
 	python3 tests/run_tests.py
 
@@ -41,4 +45,4 @@ test-rom: host
 clean:
 	rm -rf build
 
-.PHONY: all content host calc calc-native-probe calc-canonical-probe test test-rom clean
+.PHONY: all content host calc calc-native-probe calc-canonical-probe calc-memory-diagnostic test test-rom clean
