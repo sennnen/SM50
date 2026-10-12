@@ -1,0 +1,42 @@
+{
+  "rom": "synthetic.z64",
+  "name": "SYNTHETIC TEST",
+  "segments": [
+    {
+      "seg": 7,
+      "rom": [
+        "0x200000",
+        "0x2019f8"
+      ],
+      "mio0": true
+    },
+    {
+      "seg": 9,
+      "rom": [
+        "0x300000",
+        "0x300800"
+      ]
+    }
+  ],
+  "chunks": [
+    {
+      "dl": "0x7006300",
+      "layer": 0
+    },
+    {
+      "dl": "0x7005eb0",
+      "layer": 0
+    },
+    {
+      "dl": "0x7006270",
+      "layer": 2,
+      "collision": false
+    }
+  ],
+  "spawn": [
+    0,
+    100,
+    1200,
+    32768
+  ]
+}

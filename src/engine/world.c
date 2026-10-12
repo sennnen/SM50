@@ -235,38 +235,61 @@ int level_load(const void *pack_mem, u32 size, u8 *col_work, u32 col_work_size) 
     L->sky_top = BE16(p + 12); L->sky_bottom = BE16(p + 14); L->fog = BE16(p + 16);
     memcpy(L->name, p + 20, 16); L->name[16] = 0;
 
-    if (!(p = pack_find(&L->pack, "LVLM", NULL))) return -3;
-    L->n_chunks = (int)MIN(BE32(p), MAX_CHUNKS);
-    for (int i = 0; i < L->n_chunks; i++) {
-        const u8 *c = p + 4 + i * 16;
-        Chunk *ch = &L->chunks[i];
-        ch->dl = BE32(c); ch->x = BES16(c + 4); ch->y = BES16(c + 6); ch->z = BES16(c + 8);
-        ch->radius = BES16(c + 10); ch->layer = c[12];
+    /* raw segment blobs (e.g. decompressed N64 data): entries "SGxx" map segment xx */
+    for (u32 i = 0; i < L->pack.n_entries; i++) {
+        const u8 *e = L->pack.base + 16 + i * 12;
+        if (e[0] == 'S' && e[1] == 'G') {
+            int hi = e[2] <= '9' ? e[2] - '0' : (e[2] | 0x20) - 'a' + 10;
+            int lo = e[3] <= '9' ? e[3] - '0' : (e[3] | 0x20) - 'a' + 10;
+            gfx_set_segment(hi * 16 + lo, L->pack.data + BE32(e + 4));
+        }
     }
+    if ((p = pack_find(&L->pack, "LVL2", NULL))) {
+        /* u32 dl, s16 cx,cy,cz,r, u8 layer, u8 flags, s16 tx,ty,tz, u16 pad */
+        L->n_chunks = (int)MIN(BE32(p), MAX_CHUNKS);
+        for (int i = 0; i < L->n_chunks; i++) {
+            const u8 *c = p + 4 + i * 24;
+            Chunk *ch = &L->chunks[i];
+            ch->dl = BE32(c); ch->x = BES16(c + 4); ch->y = BES16(c + 6); ch->z = BES16(c + 8);
+            ch->radius = BES16(c + 10); ch->layer = c[12];
+            ch->tx = BES16(c + 14); ch->ty = BES16(c + 16); ch->tz = BES16(c + 18);
+        }
+    } else if ((p = pack_find(&L->pack, "LVLM", NULL))) {
+        L->n_chunks = (int)MIN(BE32(p), MAX_CHUNKS);
+        for (int i = 0; i < L->n_chunks; i++) {
+            const u8 *c = p + 4 + i * 16;
+            Chunk *ch = &L->chunks[i];
+            ch->dl = BE32(c); ch->x = BES16(c + 4); ch->y = BES16(c + 6); ch->z = BES16(c + 8);
+            ch->radius = BES16(c + 10); ch->layer = c[12] == 2 ? 2 : 0;
+            ch->tx = ch->ty = ch->tz = 0;
+        }
+    } else return -3;
     if (!(p = pack_find(&L->pack, "COLV", NULL))) return -4;
     if (!col_init(p, col_work, col_work_size)) return -5;
 
-    if (!(p = pack_find(&L->pack, "MDLS", NULL))) return -6;
+    if ((p = pack_find(&L->pack, "MDLS", NULL))) {
     L->n_models = (int)MIN(BE32(p), MAX_MODELS);
     for (int i = 0; i < L->n_models; i++) {
         const u8 *m = p + 4 + i * 8;
         L->models[i].dl = BE32(m); L->models[i].radius = BES16(m + 4); L->models[i].billboard = BE16(m + 6);
     }
-    if (!(p = pack_find(&L->pack, "SKEL", NULL))) return -7;
+    }
+    if ((p = pack_find(&L->pack, "SKEL", NULL))) {
     L->n_parts = (int)MIN(BE32(p), MAX_PARTS);
     for (int i = 0; i < L->n_parts; i++) {
         const u8 *s = p + 4 + i * 12;
         Part *pt = &L->parts[i];
         pt->parent = BES16(s); pt->px = BES16(s + 2); pt->py = BES16(s + 4); pt->pz = BES16(s + 6); pt->dl = BE32(s + 8);
     }
-    if (!(p = pack_find(&L->pack, "ANIM", NULL))) return -8;
+    }
+    if ((p = pack_find(&L->pack, "ANIM", NULL))) {
     L->n_anims = (int)MIN(BE32(p), MAX_ANIMS);
     for (int i = 0; i < L->n_anims; i++) {
         const u8 *a = p + BE32(p + 4 + i * 4);
         L->anims[i].raw = a; L->anims[i].nframes = BE16(a); L->anims[i].nparts = BE16(a + 2); L->anims[i].loop = BE16(a + 4);
     }
-    if (!(p = pack_find(&L->pack, "OBJS", NULL))) return -9;
-    u32 n = BE32(p);
+    }
+    u32 n = (p = pack_find(&L->pack, "OBJS", NULL)) ? BE32(p) : 0;
     for (u32 i = 0; i < n; i++) {
         const u8 *o = p + 4 + i * 12;
         u16 type = BE16(o);

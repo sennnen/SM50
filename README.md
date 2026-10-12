@@ -2,8 +2,8 @@
 
 An original fixed-point 3D platformer engine for the Casio fx-CG50 (SH4, no FPU), with an N64-style Fast3D display-list renderer, collision, a third-person character controller, an original character and level, a headless emulator test harness and a macOS installer. See `MORNING-STATUS.md` for status and scope.
 
-## Install (macOS)
-    ./install-sm50.command
+## Install (macOS): ./install-sm50.command [rom] [manifest]
+    (validates the ROM, converts it with tools/n64pack.py, attaches it to dist/SM50-engine.bin, copies to the calculator)
 
 ## Build from source (Linux or macOS)
     tools/build-toolchain.sh <dir-with-binutils_2.45.orig.tar.xz-and-gcc-14_14.3.0.orig.tar.gz> /opt/sh-elf

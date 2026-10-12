@@ -7,6 +7,13 @@ PASS gameplay: enemy contact causes damage/knockback: health=6
 PASS gameplay: never falls through terrain: min y=4
 PASS gameplay: autopilot climbs the tower stairs and collects the star: final pos (1903,1213,-1554) stars=1 coins=8
 PASS gameplay: autopilot crosses the floating platforms and collects star 2: final pos (762,818,-1361) stars=1
+PASS pipeline: synthetic ROM fixture generated: seg7 25368 bytes (MIO0 6648), seg9 2048 bytes, sha1 a5d2d5c1b543d214dd8bcbb277797ff4b2499a53
+PASS pipeline: z64/v64/n64 byte orders convert to identical packs: 43700 bytes
+PASS pipeline: header CRC verified, corruption detected: order=v64 name=SM50 SYNTHETIC TEST
+PASS pipeline: MIO0 round trip and corrupt-header rejection: 18240 -> 5450 bytes
+PASS pipeline: F3D walker follows nested G_DL across segments: tris per chunk [514, 60, 2]
+PASS pipeline: host engine renders the ROM-derived pack: avg tris drawn 300.3
 PASS g3a container checksums:   RESULT: valid
 PASS emulator: add-in boots and presents 100 frames: est. 18.1 fps (instruction-count estimate)
 PASS emulator: 3D scene rendered and changes with input: 159 colours in frame 70, 88672 pixels changed since frame 1
+PASS emulator: engine + ROM-derived pack (synthetic ROM) runs on the CG50 target: est. 42.2 fps

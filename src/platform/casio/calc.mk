@@ -8,13 +8,22 @@ CALC_CFLAGS := -m4-nofpu -mb -O2 -ffreestanding -nostdlib -fno-pie -fno-builtin-
 CALC_SRC := $(ENGINE) src/platform/casio/main.c src/platform/casio/libc_min.c
 CALC_ASM := src/platform/casio/crt0.S src/platform/casio/syscalls.S
 CALC_NAME ?= SM50
+# CALC_EMBED=1 links content/sm50.pack into the add-in (test builds); otherwise the
+# data pack is appended at install time by tools/build-g3a.py.
+CALC_EMBED ?= 0
+ifeq ($(CALC_EMBED),1)
+CALC_PACK_OBJ := src/platform/casio/pack.S
+CALC_CFLAGS += -DSM50_EMBED_PACK
+else
+CALC_PACK_OBJ :=
+endif
 
 calc: $(CALC_DIR)/$(CALC_NAME).g3a
 
 $(CALC_DIR)/$(CALC_NAME).elf: $(CALC_SRC) $(CALC_ASM) src/platform/casio/pack.S src/platform/casio/prizm.ld content/sm50.pack src/engine/*.h
 	@mkdir -p $(CALC_DIR)
 	$(SH_CC) $(CALC_CFLAGS) -T src/platform/casio/prizm.ld -Wl,--gc-sections -Wl,-Map,$(CALC_DIR)/$(CALC_NAME).map \
-		-DSM50_PACK_PATH='"content/sm50.pack"' -o $@ $(CALC_ASM) src/platform/casio/pack.S $(CALC_SRC) -lgcc
+		-DSM50_PACK_PATH='"content/sm50.pack"' -o $@ $(CALC_ASM) $(CALC_PACK_OBJ) $(CALC_SRC) -lgcc
 
 $(CALC_DIR)/$(CALC_NAME).bin: $(CALC_DIR)/$(CALC_NAME).elf
 	$(SH_OBJCOPY) -O binary -R .bss $< $@

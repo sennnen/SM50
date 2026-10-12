@@ -17,6 +17,7 @@ SECTIONS {
         . = ALIGN(4);
         _edata = .;
     } > ram AT > rom
+    _rom_image_end = LOADADDR(.data) + SIZEOF(.data);
     .bss (NOLOAD) : ALIGN(4) {
         _bbss = .;
         *(.bss) *(.bss.*) *(COMMON)

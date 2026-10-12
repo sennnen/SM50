@@ -61,6 +61,9 @@ typedef struct {
 } Material;
 static Material sMat;
 static int sMatDirty = 1;
+static int sForceXlu;
+
+void gfx_force_xlu(int on) { sForceXlu = on; sMatDirty = 1; }
 
 /* vertices */
 typedef struct {
@@ -255,7 +258,7 @@ static void resolve_material(void) {
     int flags = 0;
     if (sCombShade && (sGeomMode & G_SHADE)) flags |= MF_SHADE;
     /* render mode: FORCE_BL with no Z update -> translucent */
-    if ((sOtherL & 0x4000) && !(sOtherL & 0x20)) flags |= MF_XLU | MF_NOZW;
+    if (((sOtherL & 0x4000) && !(sOtherL & 0x20)) || sForceXlu) flags |= MF_XLU | MF_NOZW;
     sMat.flat = 0xFFFF;
     if (sCombPrim) sMat.flat = rgb565(sPrimColor >> 24, (sPrimColor >> 16) & 0xFF, (sPrimColor >> 8) & 0xFF);
     else if (sCombEnv) sMat.flat = rgb565(sEnvColor >> 24, (sEnvColor >> 16) & 0xFF, (sEnvColor >> 8) & 0xFF);

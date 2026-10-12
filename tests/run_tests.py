@@ -2,7 +2,7 @@
 """SM50 automated tests: unit tests, deterministic gameplay runs on the host
 build, content-pack validation, g3a validation and (if built) an emulator run
 of the real calculator add-in with screenshot checks."""
-import os, re, struct, subprocess, sys
+import json, os, re, struct, subprocess, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "build", "test-results")
@@ -70,15 +70,58 @@ if os.path.exists(os.path.join(ROOT, "tests/scripts/star_route.txt")):
     record("gameplay: autopilot crosses the floating platforms and collects star 2", rows[-1]["stars"] >= 1,
            f"final pos ({rows[-1]['x']},{rows[-1]['y']},{rows[-1]['z']}) stars={rows[-1]['stars']}")
 
-# 5. g3a validation
-g3a = os.path.join(ROOT, "build/calc/SM50.g3a")
+# 5. generic ROM pipeline on the synthetic fixture
+sys.path.insert(0, os.path.join(ROOT, "tools"))
+from n64 import rom as n64rom, mio0 as n64mio0, f3d as n64f3d  # noqa: E402
+from n64.segments import Segments  # noqa: E402
+r = run([sys.executable, "tests/make_synthetic_rom.py"])
+record("pipeline: synthetic ROM fixture generated", r.returncode == 0, r.stdout.strip()[-120:])
+packs = {}
+for order in ("z64", "v64", "n64"):
+    out = os.path.join(OUT, "synth_%s.pack" % order)
+    r = run([sys.executable, "tools/n64pack.py", "tests/fixtures/synthetic.json", "--rom", "tests/fixtures/synthetic." + order, "-o", out])
+    packs[order] = open(out, "rb").read() if r.returncode == 0 else b""
+record("pipeline: z64/v64/n64 byte orders convert to identical packs",
+       packs["z64"] and packs["z64"] == packs["v64"] == packs["n64"], "%d bytes" % len(packs["z64"]))
+z, h = n64rom.load(os.path.join(ROOT, "tests/fixtures/synthetic.v64"))
+bad = bytearray(z); bad[0x5000] ^= 0xFF
+record("pipeline: header CRC verified, corruption detected",
+       h["crc_ok"] and n64rom.cic6102_crc(bytes(bad)) != (h["crc1"], h["crc2"]), "order=%s name=%s" % (h["order"], h["name"]))
+blob = os.urandom(3000) + bytes(range(256)) * 40 + b"\0" * 5000
+c = n64mio0.compress(blob)
+try:
+    n64mio0.decompress(c[:4] + b"\xff" * 4 + c[8:]); corrupt_ok = False
+except Exception:
+    corrupt_ok = True
+record("pipeline: MIO0 round trip and corrupt-header rejection", n64mio0.decompress(c) == blob and corrupt_ok,
+       "%d -> %d bytes" % (len(blob), len(c)))
+m = json.load(open(os.path.join(ROOT, "tests/fixtures/synthetic.json")))
+segs = Segments()
+for sg in m["segments"]:
+    a, b = int(sg["rom"][0], 16), int(sg["rom"][1], 16)
+    segs.set(sg["seg"], n64mio0.decompress(z[a:b]) if sg.get("mio0") else z[a:b])
+tri_counts = [len(n64f3d.walk(segs, int(ch["dl"], 16)).tris) for ch in m["chunks"]]
+record("pipeline: F3D walker follows nested G_DL across segments", tri_counts == [514, 60, 2], "tris per chunk %s" % tri_counts)
+synth = os.path.join(OUT, "synth_z64.pack")
+r = run(["./build/host/sm50-host", "--pack", synth, "--frames", "40", "--keys", "tests/scripts/run_jump.txt",
+         "--outdir", OUT, "--shot-at", "39"])
+m2 = re.search(r"avg_tris=([\d.]+)", r.stdout)
+record("pipeline: host engine renders the ROM-derived pack", r.returncode == 0 and m2 and float(m2.group(1)) > 50,
+       "avg tris drawn %s" % (m2.group(1) if m2 else "?"))
+
+# 6. g3a validation (prebuilt engine + attached packs)
+engine_bin = os.path.join(ROOT, "build/calc/SM50.bin")
+g3a = os.path.join(OUT, "SM50-test.g3a")
+g3a_synth = os.path.join(OUT, "SM50-synth.g3a")
+run([sys.executable, "tools/build-g3a.py", engine_bin, "content/sm50.pack", g3a])
+run([sys.executable, "tools/build-g3a.py", engine_bin, synth, g3a_synth])
 if os.path.exists(g3a):
     r = run([sys.executable, "tools/g3a_check.py", g3a])
     record("g3a container checksums", r.returncode == 0, r.stdout.strip().splitlines()[-1] if r.stdout else r.stderr[-200:])
 else:
     record("g3a container checksums", False, "build/calc/SM50.g3a missing (run make calc)")
 
-# 6. emulator: run the real add-in
+# 7. emulator: run the real add-in
 emu = os.environ.get("SM50EMU", "/home/user/ext/casio-emu-build/build-headless/sm50emu")
 if os.path.exists(emu) and os.path.exists(g3a):
     eo = os.path.join(OUT, "emu")
@@ -100,6 +143,12 @@ if os.path.exists(emu) and os.path.exists(g3a):
                f"{colours} colours in frame 70, {diff} pixels changed since frame 1")
     except ImportError:
         record("emulator: screenshot analysis", False, "PIL not installed")
+    r = run([emu, "--keys", "tests/scripts/emu_play.txt", "--outdir", eo, "--shot-at", "60", "--max-frames", "80",
+             "--max-wall", "300", g3a_synth], timeout=400)
+    open(os.path.join(eo, "summary-synth.txt"), "w").write(r.stdout + r.stderr)
+    fps = re.search(r"est\. HW fps\s*:\s*([\d.]+)", r.stdout)
+    record("emulator: engine + ROM-derived pack (synthetic ROM) runs on the CG50 target",
+           r.returncode == 0 and "frames presented  : 80" in r.stdout, "est. %s fps" % (fps.group(1) if fps else "?"))
 else:
     record("emulator run", False, "emulator or g3a missing")
 

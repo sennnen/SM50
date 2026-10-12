@@ -106,6 +106,8 @@ void gfx_set_model_billboard(s32 x, s32 y, s32 z, s32 scale14);
 void gfx_run_dl(u32 seg_addr);
 void gfx_run_dl_ptr(const u8 *dl);
 void gfx_reset_state(void);
+/* Force translucent blending (50%, no depth write) regardless of render mode. */
+void gfx_force_xlu(int on);
 /* Project a world point to screen. Returns 0 if behind the camera. */
 int gfx_project_point(s32 x, s32 y, s32 z, s32 *sx, s32 *sy, s32 *depth);
 /* Sphere visibility test in world coordinates. */

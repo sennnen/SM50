@@ -280,7 +280,17 @@ static void draw_hud(int show_fps, int fps10) {
     if (gGame.title) { draw_title(); return; }
     const Player *p = &gGame.p;
     int s = gfx_width() >= 300 ? 2 : 1;
-    /* health pips */
+    if (gLevel.n_parts == 0 && gLevel.n_objs == 0) {
+        /* scene pack (geometry only): show the scene name and position */
+        gfx_draw_text(4, 4, gLevel.name, 0xFFFF, s);
+        snprintf(buf, sizeof(buf), "%d %d %d", p->x >> 8, p->y >> 8, p->z >> 8);
+        gfx_draw_text(4, 4 + 9 * s, buf, 0xFFE0, s);
+        if (show_fps) {
+            snprintf(buf, sizeof(buf), "%d.%d FPS", fps10 / 10, fps10 % 10);
+            gfx_draw_text(gfx_width() - gfx_text_width(buf, s) - 4, 4, buf, 0x07FF, s);
+        }
+        return;
+    }
     for (int i = 0; i < 8; i++) gfx_fill_rect(4 + i * 5 * s, 4, 4 * s, 6 * s, i < p->health ? 0xF800 : 0x4208);
     snprintf(buf, sizeof(buf), "COIN %d/%d", p->coins, gLevel.coins_total);
     gfx_draw_text(4, 4 + 8 * s, buf, 0xFFE0, s);
@@ -314,7 +324,7 @@ void game_render(int show_fps, int fps10) {
     for (int layer = 0; layer < 3; layer += 2) {
         if (layer == 2) {
             /* objects + player before translucent water */
-            draw_skeleton(&g->p);
+            if (gLevel.n_parts > 0) draw_skeleton(&g->p);
             for (int i = 0; i < gLevel.n_objs; i++) {
                 const Obj *o = &gLevel.objs[i];
                 if (!o->active) continue;
@@ -332,7 +342,7 @@ void game_render(int show_fps, int fps10) {
         int order[MAX_CHUNKS]; s32 key[MAX_CHUNKS]; int n = 0;
         for (int i = 0; i < gLevel.n_chunks; i++) {
             const Chunk *ch = &gLevel.chunks[i];
-            if (ch->layer != layer) continue;
+            if ((layer == 2) != (ch->layer == 2)) continue;
             if (!gfx_sphere_visible(ch->x, ch->y, ch->z, ch->radius)) continue;
             s32 dx = (ch->x - c->x) >> 4, dy = (ch->y - c->y) >> 4, dz = (ch->z - c->z) >> 4;
             s32 k = dx * dx + dy * dy + dz * dz;
@@ -340,7 +350,16 @@ void game_render(int show_fps, int fps10) {
             while (j > 0 && key[j - 1] > k) { key[j] = key[j - 1]; order[j] = order[j - 1]; j--; }
             key[j] = k; order[j] = i;
         }
-        for (int i = 0; i < n; i++) gfx_run_dl(gLevel.chunks[order[i]].dl);
+        gfx_force_xlu(layer == 2);
+        for (int i = 0; i < n; i++) {
+            const Chunk *ch = &gLevel.chunks[order[i]];
+            if (ch->tx | ch->ty | ch->tz) {
+                Mat34 t; mat_identity(&t); t.m[0][3] = ch->tx; t.m[1][3] = ch->ty; t.m[2][3] = ch->tz;
+                gfx_set_model(&t);
+            } else gfx_set_model(&id);
+            gfx_run_dl(ch->dl);
+        }
+        gfx_force_xlu(0);
     }
     draw_hud(show_fps, fps10);
     g->frame++;

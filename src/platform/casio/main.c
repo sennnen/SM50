@@ -32,7 +32,30 @@ static u16 sZb[RW * RH] __attribute__((aligned(4)));
 static u8 sTexCache[48 * 1024] __attribute__((aligned(4)));
 static u8 sColWork[24 * 1024] __attribute__((aligned(4)));
 
+#ifdef SM50_EMBED_PACK
 extern const u8 sm50_pack_start[], sm50_pack_end[];
+#endif
+extern const u8 rom_image_end[];
+
+/* Locate the data pack: appended after the add-in image by tools/build-g3a.py
+ * (16-byte aligned), or embedded at link time for test builds. */
+static const u8 *find_pack(u32 *size) {
+    const u8 *p = (const u8 *)(((u32)rom_image_end + 15) & ~15u);
+    if (p[0] == 'S' && p[1] == '5' && p[2] == '0' && p[3] == 'P') {
+        /* size: end of the last entry */
+        u32 n = BE32(p + 8), ds = BE32(p + 12), end = ds;
+        for (u32 i = 0; i < n; i++) { u32 e = ds + BE32(p + 16 + i * 12 + 4) + BE32(p + 16 + i * 12 + 8); if (e > end) end = e; }
+        *size = end;
+        return p;
+    }
+#ifdef SM50_EMBED_PACK
+    *size = (u32)(sm50_pack_end - sm50_pack_start);
+    return sm50_pack_start;
+#else
+    *size = 0;
+    return NULL;
+#endif
+}
 
 /* Key matrix (KEYSC data registers) */
 static int keydown(int code) {
@@ -125,11 +148,17 @@ int main(void) {
     Bdisp_AllClr_VRAM();
     gfx_init(sFb, sZb, RW, RH, sTexCache, sizeof sTexCache);
     gfx_set_perspective(50, 64, 16000);
-    DBG("SM50 start, pack %u bytes", (unsigned)(sm50_pack_end - sm50_pack_start));
-    int r = game_init(sm50_pack_start, (u32)(sm50_pack_end - sm50_pack_start), sColWork, sizeof sColWork);
+    u32 pack_size = 0;
+    const u8 *pack = find_pack(&pack_size);
+    DBG("SM50 start, pack %u bytes", (unsigned)pack_size);
+    if (!pack) {
+        message("SM50: no game data in this add-in", "run install-sm50.command");
+        int k; for (;;) GetKey(&k);
+    }
+    int r = game_init(pack, pack_size, sColWork, sizeof sColWork);
     if (r) {
         char buf[32]; snprintf(buf, sizeof buf, "error %d", r);
-        message("SM50: content pack failed", buf);
+        message("SM50: game data pack failed", buf);
         int k; for (;;) GetKey(&k);
     }
     DBG("level loaded: %d chunks %d objs", gLevel.n_chunks, gLevel.n_objs);

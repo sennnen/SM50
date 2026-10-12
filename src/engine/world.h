@@ -47,7 +47,7 @@ int col_floor_normal(s32 x, s32 y, s32 z, s32 *nx, s32 *nz);
 #define OBJ_BLOB 5
 
 typedef struct {
-    u32 dl; s16 x, y, z, radius; u8 layer;
+    u32 dl; s16 x, y, z, radius; u8 layer; s16 tx, ty, tz; /* layer: 0 opaque, 1 alpha-test, 2 translucent */
 } Chunk;
 
 typedef struct {
