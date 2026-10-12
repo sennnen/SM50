@@ -49,7 +49,7 @@ the game-state and renderer buffers occupy RAM.
 | Existing preview | 116,056 B | 48 B | 181,044 B | 181,092 B |
 | Preview + native probe | 127,720 B | 22,580 B | 181,100 B | 203,680 B |
 | Canonical ground-step probe | 133,644 B | 22,628 B | 193,420 B | 216,048 B |
-| Six canonical action groups | 208,508 B | 22,900 B | 194,496 B | 217,396 B |
+| Six canonical action groups + native spawn table | 208,716 B | 22,900 B | 196,036 B | 218,936 B |
 
 The probe adds 22,532 bytes of initialized data, principally the Q12
 sine/arctangent tables. This leaves about 124 KiB inside the current static
@@ -83,10 +83,11 @@ of 99 links in one cell. Exact-sized canonical arrays use 93,600 bytes,
 python3 tools/analyze_sm64_ram.py build/native-sm64-probe/bob.pack
 ```
 
-The six-group action probe uses 217,396 bytes of static data+BSS, including
+The six-group action probe with the 64-entry native spawn table uses 218,936
+bytes of static data+BSS, including
 its two 16-by-16 partitions. Adding the measured 38,912-byte 64-object pool
-would bring it to 256,308 bytes of the 320 KiB static allowance, leaving
-71,372 bytes for other gameplay state. The canonical surface and link arrays
+would bring it to 257,848 bytes of the 320 KiB static allowance, leaving
+69,832 bytes for other gameplay state. The canonical surface and link arrays
 use 93,600 bytes of the separate allocator; the probe reserves 6,000 links,
 so the emulator reports 98,880 bytes allocated. Its 256 KiB heap is an
 emulator measurement only; physical calculator heap capacity remains unknown.
@@ -159,13 +160,22 @@ python3 tools/build_native_probe.py --source canonical --frames 120 \
 
 The ROM-derived pack, add-in and logs are written under ignored `build/`.
 
+The converter also preserves all 21 original Battlefield level-script
+placements in an `SOBJ` chunk, including models, full transforms, behavior
+segment addresses and behavior parameters. The existing compact `OBJS` chunk
+remains unchanged for the renderer and legacy engine. `level_load` retains the
+raw records in a bounded 64-entry table; the canonical behavior interpreter
+does not consume them yet. This prevents the current three-entry compatibility
+mapping from discarding data needed by the native object runtime.
+
 ## Next integration boundary
 
 The experiment now runs canonical stationary, moving, airborne, submerged,
 automatic and object action dispatch with the decompilation's floor, wall and
-ceiling queries against ROM collision. The cutscene action group, object
-behaviors, level scripts, original camera, audio and progression remain
-unconnected. The next port layer should replace object-interaction stubs with
-the native object pool, canonical behavior interpreter and Battlefield spawns.
-Keep rendering as a backend that consumes the resulting original game state
-and ROM geometry.
+ceiling queries against ROM collision. Full Battlefield placements are now
+preserved and decoded, but the cutscene action group, object behaviors, level
+scripts, original camera, audio and progression remain unconnected. The next
+port layer should connect the bounded canonical object pool and behavior
+interpreter to retained Battlefield spawns, then replace object-interaction
+stubs. Keep rendering as a backend that consumes original game state and ROM
+geometry.

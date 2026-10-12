@@ -58,12 +58,21 @@ typedef struct {
     s32 hx, hy, hz; u16 yaw, param; s32 timer, vy, state;
 } Obj;
 
+/* Unmapped original SM64 placements retained for the native behavior runtime. */
+typedef struct {
+    u16 model;
+    s16 x, y, z, pitch, yaw, roll;
+    u16 reserved;
+    u32 behavior_param, behavior_addr;
+} Sm64Spawn;
+
 typedef struct {
     u32 dl; s16 radius; u16 billboard;
     u16 scale14; /* optional per-model scale; zero uses the engine default */
 } Model;
 
 #define MAX_OBJS 96
+#define MAX_SM64_SPAWNS 64
 #define MAX_CHUNKS 64
 #define MAX_MODELS 16
 #define MAX_PARTS 24
@@ -87,6 +96,7 @@ typedef struct {
     char name[17];
     Chunk chunks[MAX_CHUNKS]; int n_chunks;
     Obj objs[MAX_OBJS]; int n_objs;
+    Sm64Spawn sm64_spawns[MAX_SM64_SPAWNS]; int n_sm64_spawns;
     Model models[MAX_MODELS]; int n_models;
     Part parts[MAX_PARTS]; int n_parts;
     Anim anims[MAX_ANIMS]; int n_anims;

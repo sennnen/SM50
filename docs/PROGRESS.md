@@ -90,8 +90,9 @@ optimization case study rather than copied as a whole.
   direct tests confirm Q12 158 round-trips and 0.5 converts correctly.
 - The existing linker map limits `.data + .bss` to 320 KiB and reserves 192
   KiB for stack. Preview data+BSS uses 181,092 bytes; the PS1 Q12 probe uses
-  203,692 bytes and the current six-group action probe uses 217,396 bytes.
-  Its `.data` is 22,900 bytes, `.bss` is 194,496 bytes, and text is 208,508
+  203,692 bytes and the current six-group action probe with the native spawn
+  table uses 218,936 bytes. Its `.data` is 22,900 bytes, `.bss` is 196,036
+  bytes, and text is 208,716
   bytes.
   The 120-frame emulator run used about 5 KiB of stack high-water, an emulator
   estimate. The canonical probe allocates 98,880 bytes for surfaces and 6,000
@@ -104,7 +105,7 @@ optimization case study rather than copied as a whole.
   reproduces the original surface-cell boundary rules: Battlefield needs 1,060
   surfaces and 5,340 links (93,600 bytes), versus 158,400 bytes in the stock
   canonical reservations. Static partitions plus the 64-object pool fit the
-  measured 320 KiB static budget with 71,372 bytes left for game state after
+  measured 320 KiB static budget with 69,832 bytes left for game state after
   the 64-object pool reservation.
 - The canonical `n64decomp/sm64` CC0 repository is pinned as a submodule at
   `9921382a`. Its stationary, moving, airborne, submerged, automatic and
@@ -112,6 +113,13 @@ optimization case study rather than copied as a whole.
   requests route to ROM-backed clips. The emulator runs those dispatch groups
   against the actual ROM geometry. Cutscene actions, object interactions,
   object behavior runtime, level scripts and original camera are outstanding.
+
+- ROM-derived object handoff: the converter writes every one of Bob-omb
+  Battlefield's 21 level-script placements to a new `SOBJ` pack entry, keeping
+  the source model, transform, segmented behavior address and behavior
+  parameters. The existing renderer-facing `OBJS` chunk remains compatible.
+  The engine loads these into a bounded 64-record table and reports the count;
+  canonical behavior execution is the next integration step.
 
 This is a successful native-code action-group integration, not yet the original
 game loop: Mario object interactions, cutscene actions, behavior

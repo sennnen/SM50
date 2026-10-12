@@ -236,7 +236,8 @@ int main(void) {
                                   native_sm64_canonical_anim_index);
     }
 #endif
-    DBG("level loaded: %d chunks %d objs", gLevel.n_chunks, gLevel.n_objs);
+    DBG("level loaded: %d chunks %d objs %d SM64 placements", gLevel.n_chunks, gLevel.n_objs,
+        gLevel.n_sm64_spawns);
     int last = RTC_GetTicks();
     int acc = 0; /* in 1/128 s * 30 units */
     int fps10 = 0, frames = 0, fps_t0 = last;

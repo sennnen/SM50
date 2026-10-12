@@ -46,10 +46,16 @@ def main():
     assert pack[:4] == b"S50P"
     col, _ = entry(pack, b"COLV")
     objs, _ = entry(pack, b"OBJS")
+    sobj, sobj_size = entry(pack, b"SOBJ")
     skel, _ = entry(pack, b"SKEL")
     anim, _ = entry(pack, b"ANIM")
     assert struct.unpack_from(">I", pack, col)[0] == 1060
     assert struct.unpack_from(">I", pack, objs)[0] == 16
+    assert struct.unpack_from(">I", pack, sobj)[0] == 21
+    assert sobj_size == 4 + 21 * 24
+    raw_spawns = [struct.unpack_from(">HhhhhhhhII", pack, sobj + 4 + i * 24)
+                  for i in range(21)]
+    assert sum(1 for s in raw_spawns if s[9] != 0) == 21
     objects = [(objs + 4 + i * 12, struct.unpack_from(">HhhhHH", pack, objs + 4 + i * 12))
                for i in range(16)]
     assert [o[1][0] for o in objects].count(6) == 8
@@ -66,7 +72,8 @@ def main():
     log = os.path.join(OUT, "walk.log")
     output = run("./build/host/sm50-host", "--pack", pack_path, "--frames", "45",
                  "--log", log, "--outdir", OUT, "--shot-at", "35")
-    assert "6 chunks, 1060 col tris, 16 objects, 20 parts, 8 anims" in output
+    assert "21 SM64 placements" in output
+    assert "6 chunks, 1060 col tris, 16 objects, 21 SM64 placements, 20 parts, 8 anims" in output
     rows = open(log).read().splitlines()
     assert "ground=1" in rows[35]
     assert int(re.search(r"tris=(\d+)", rows[35]).group(1)) > 100

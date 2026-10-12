@@ -160,6 +160,16 @@ def build(manifest, base_dir, log=print):
                   for model, x, y, z, pitch, yaw, roll, param, behaviour in script["objects"]
                   if behaviour in behavior_types or model in model_types]
         objects += mapped
+        # Preserve the complete native placement records for the canonical
+        # behavior runtime. OBJS remains the compact legacy renderer/gameplay
+        # view; SOBJ retains model, full transform, behavior address and params.
+        native_objects = script["objects"]
+        if len(native_objects) > 64:
+            raise ValueError("more than 64 native SM64 placements; calculator pool limit reached")
+        pw.add("SOBJ", struct.pack(">I", len(native_objects)) + b"".join(
+            struct.pack(">HhhhhhhhII", model, x, y, z, pitch, yaw, roll,
+                        0, param, behaviour)
+            for model, x, y, z, pitch, yaw, roll, param, behaviour in native_objects))
         if "spawn_warp" in spec:
             warp_id = num(spec["spawn_warp"])
             matches = [(x, y, z, (yaw * 65536 // 360) & 0xFFFF)

@@ -313,5 +313,17 @@ int level_load(const void *pack_mem, u32 size, u8 *col_work, u32 col_work_size) 
         if (type == OBJ_COIN) L->coins_total++;
         if (type == OBJ_RED_COIN) L->red_coins_total++;
     }
+    if ((p = pack_find(&L->pack, "SOBJ", NULL))) {
+        L->n_sm64_spawns = (int)MIN(BE32(p), MAX_SM64_SPAWNS);
+        for (int i = 0; i < L->n_sm64_spawns; i++) {
+            const u8 *o = p + 4 + i * 24;
+            Sm64Spawn *s = &L->sm64_spawns[i];
+            s->model = BE16(o);
+            s->x = BES16(o + 2); s->y = BES16(o + 4); s->z = BES16(o + 6);
+            s->pitch = BES16(o + 8); s->yaw = BES16(o + 10); s->roll = BES16(o + 12);
+            s->reserved = BE16(o + 14);
+            s->behavior_param = BE32(o + 16); s->behavior_addr = BE32(o + 20);
+        }
+    }
     return 0;
 }

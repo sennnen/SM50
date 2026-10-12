@@ -123,8 +123,8 @@ int main(int argc, char **argv) {
     int r = game_init(pack, (u32)psize, sColWork, sizeof sColWork);
     if (r) { fprintf(stderr, "game_init failed: %d\n", r); return 1; }
     gGame.title = show_title;
-    printf("level '%s': %d chunks, %u col tris, %d objects, %d parts, %d anims\n", gLevel.name, gLevel.n_chunks,
-           col_tri_count(), gLevel.n_objs, gLevel.n_parts, gLevel.n_anims);
+    printf("level '%s': %d chunks, %u col tris, %d objects, %d SM64 placements, %d parts, %d anims\n", gLevel.name, gLevel.n_chunks,
+           col_tri_count(), gLevel.n_objs, gLevel.n_sm64_spawns, gLevel.n_parts, gLevel.n_anims);
     FILE *lf = log_path ? fopen(log_path, "w") : NULL;
     u16 held = 0; int si = 0;
     u64 tris = 0, px = 0;
