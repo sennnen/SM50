@@ -98,6 +98,13 @@ and walking velocity reaches 98099/4096 after 30 ticks. Emulator throughput
 is only an instruction-count estimate and has not been measured on calculator
 hardware.
 
+The probe now also calls the existing ROM collision backend at Battlefield's
+spawn point, converts its floor normal into the PS1/original `Surface` layout,
+and runs the original walking-speed update on that real surface. The emulator
+reports floor height 0, normal Y 16384 (Q14), and 30-tick walking speed
+98099/4096. This validates one narrow backend boundary; it is not yet the
+original ground-step solver or full walking action.
+
 Build and run this ROM-local experiment with:
 
 ```sh
@@ -109,10 +116,12 @@ The ROM-derived pack, add-in and logs are written under ignored `build/`.
 ## Next integration boundary
 
 The experiment proves that original-derived movement routines and Q12 math can
-be linked into the existing SH4 add-in. It does not run the full Mario action
+be linked into the existing SH4 add-in, and that a real ROM floor can be
+presented to the original surface ABI. It does not run the full Mario action
 dispatcher, collision solver, object behavior VM, level scripts or original
 camera. The next port layer should bring in the canonical Mario state/action
-dispatcher and per-frame update, then bridge its `Surface` queries to
-ROM-derived collision triangles. After that, import behavior scripts and the
-bounded subset of level/area execution needed for Battlefield. Keep rendering
-as a backend that consumes the resulting original game state and ROM geometry.
+dispatcher and per-frame update, then replace this single floor-query adapter
+with the complete `Surface` partition and ground-step interfaces. After that,
+import behavior scripts and the bounded subset of level/area execution needed
+for Battlefield. Keep rendering as a backend that consumes the resulting
+original game state and ROM geometry.

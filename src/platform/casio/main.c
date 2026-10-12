@@ -39,6 +39,9 @@ extern const u8 sm50_pack_start[], sm50_pack_end[];
 extern int native_sm64_movement_probe(void);
 extern volatile s32 native_sm64_probe_slide_z_q12;
 extern volatile s32 native_sm64_probe_walk_speed_q12;
+extern volatile s32 native_sm64_probe_rom_floor_y_q8;
+extern volatile s32 native_sm64_probe_rom_normal_y_q14;
+extern volatile s32 native_sm64_probe_rom_walk_speed_q12;
 #endif
 extern const u8 rom_image_end[];
 
@@ -171,6 +174,10 @@ int main(void) {
     DBG("SM64 Q12 %s slide=%d walk=%d",
         native_probe_ok ? "PASS" : "FAIL", native_sm64_probe_slide_z_q12,
         native_sm64_probe_walk_speed_q12);
+    DBG("SM64 ROM floor y_q8=%d ny_q14=%d walk=%d",
+        native_sm64_probe_rom_floor_y_q8,
+        native_sm64_probe_rom_normal_y_q14,
+        native_sm64_probe_rom_walk_speed_q12);
 #endif
     DBG("level loaded: %d chunks %d objs", gLevel.n_chunks, gLevel.n_objs);
     int last = RTC_GetTicks();

@@ -32,6 +32,7 @@ def main():
     g3a = out / "SM64NativeProbe.g3a"
     run(["python3", "tools/n64pack.py", "manifests/sm64-us-bob.json",
          "--rom", str(rom), "-o", str(pack)])
+    run(["python3", "tools/analyze_sm64_ram.py", str(pack)])
     run(["python3", "tools/build-g3a.py", "build/calc/SM64NativeProbe.bin",
          str(pack), str(g3a), "--name", "SM64Probe"])
     print(f"Built local-ROM add-in: {g3a}")

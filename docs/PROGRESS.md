@@ -71,11 +71,17 @@ optimization case study rather than copied as a whole.
   The probe runs beside the real ROM-derived Battlefield renderer in the
   headless calculator emulator. After 30 ticks, walking speed is 98099/4096
   units and slope velocity is 4110/4096 units.
+- The probe now asks the ROM-derived collision backend for the actual floor at
+  Mario's Battlefield spawn point, converts its Q14 normal into the original
+  SM64 `Surface` format, and runs that walking-speed update against it. The
+  emulator reports floor Y 0, normal Y 16384 and speed 98099/4096 after 30
+  ticks. This is a verified collision adapter seam, not the complete ground
+  solver or action dispatcher.
 - The PS1 port's float/Q12 bridge used bitfield ordering that returned zero on
   this big-endian SH4 target. An endian-safe local bridge fixes that issue;
   direct tests confirm Q12 158 round-trips and 0.5 converts correctly.
 - The existing linker map limits `.data + .bss` to 320 KiB and reserves 192
-  KiB for stack. Preview data+BSS uses 181,092 bytes; the probe uses 203,668
+  KiB for stack. Preview data+BSS uses 181,092 bytes; the probe uses 203,692
   bytes, mostly due to Q12 lookup tables. The emulator reports a separate
   256 KiB allocator arena, which is not yet confirmed on hardware.
 - SH4 layout measurements give each original SM64 object 548 bytes. Reducing

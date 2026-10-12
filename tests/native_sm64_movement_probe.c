@@ -8,6 +8,7 @@
 
 extern void update_sliding_angleq(struct MarioState *m, q32 accelq, q32 lossFactorq);
 extern void update_walking_speed(struct MarioState *m);
+extern s32 sm50_native_rom_floor(s32 values[4]);
 
 /* The isolated probe does not model these environmental surface callbacks. */
 u32 mario_update_moving_sand(struct MarioState *m) { (void)m; return 0; }
@@ -19,6 +20,9 @@ volatile s32 native_sm64_probe_slide_z_q12;
 volatile s32 native_sm64_probe_slide_x_q12;
 volatile s32 native_sm64_probe_math[11];
 volatile s32 native_sm64_probe_walk_speed_q12;
+volatile s32 native_sm64_probe_rom_floor_y_q8;
+volatile s32 native_sm64_probe_rom_normal_y_q14;
+volatile s32 native_sm64_probe_rom_walk_speed_q12;
 
 int native_sm64_movement_probe(void) {
     struct MarioState mario = { 0 };
@@ -57,6 +61,21 @@ int native_sm64_movement_probe(void) {
     for (int frame = 0; frame < 30; frame++) update_walking_speed(&walker);
     native_sm64_probe_walk_speed_q12 = q(walker.forwardVel);
 
+    /* Adapt the actual ROM-derived collision floor to SM64's Surface ABI. */
+    s32 floor_data[4] = { 0 };
+    if (!sm50_native_rom_floor(floor_data)) return 0;
+    struct Surface rom_floor = { 0 };
+    rom_floor.compressed_normal.x = (s8)(floor_data[1] >> 7);
+    rom_floor.compressed_normal.y = (s8)(floor_data[2] >> 7);
+    rom_floor.compressed_normal.z = (s8)(floor_data[3] >> 7);
+    struct MarioState rom_walker = { 0 };
+    rom_walker.floor = &rom_floor;
+    rom_walker.intendedMag = 32.0f;
+    for (int frame = 0; frame < 30; frame++) update_walking_speed(&rom_walker);
+    native_sm64_probe_rom_floor_y_q8 = floor_data[0];
+    native_sm64_probe_rom_normal_y_q14 = floor_data[2];
+    native_sm64_probe_rom_walk_speed_q12 = q(rom_walker.forwardVel);
+
     /* Positive slope acceleration and bounded, nonzero output are expected. */
     return mario.slideVelZ > 1.0f && mario.slideVelZ < 32.0f
         && walker.forwardVel > 0.0f && walker.forwardVel < 48.0f
@@ -65,5 +84,6 @@ int native_sm64_movement_probe(void) {
         && native_sm64_probe_math[7] == 1
         && native_sm64_probe_math[9] == 1
         && native_sm64_probe_math[10] == 1
+        && rom_walker.forwardVel > 0.0f && rom_walker.forwardVel < 48.0f
         && mario.slideYaw >= -32768 && mario.slideYaw <= 32767;
 }

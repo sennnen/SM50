@@ -23,6 +23,7 @@ CALC_PS1_OBJECTS := $(CALC_DIR)/native/mario_actions_moving.c.o \
 	$(CALC_DIR)/native/float_math.c.o \
 	$(CALC_DIR)/native/ps1_softfloat_bridge.c.o \
 	$(CALC_DIR)/native/native_sm64_movement_probe.c.o
+CALC_NATIVE_BRIDGE := $(CALC_DIR)/native/native_sm64_collision_bridge.c.o
 endif
 # CALC_EMBED=1 links content/sm50.pack into the add-in (test builds); otherwise the
 # data pack is appended at install time by tools/build-g3a.py.
@@ -36,10 +37,10 @@ endif
 
 calc: $(CALC_DIR)/$(CALC_NAME).g3a
 
-$(CALC_DIR)/$(CALC_NAME).elf: $(CALC_SRC) $(CALC_ASM) $(CALC_PS1_OBJECTS) src/platform/casio/pack.S src/platform/casio/prizm.ld content/sm50.pack src/engine/*.h
+$(CALC_DIR)/$(CALC_NAME).elf: $(CALC_SRC) $(CALC_ASM) $(CALC_PS1_OBJECTS) $(CALC_NATIVE_BRIDGE) src/platform/casio/pack.S src/platform/casio/prizm.ld content/sm50.pack src/engine/*.h
 	@mkdir -p $(CALC_DIR)
 	$(SH_CC) $(CALC_CFLAGS) -T src/platform/casio/prizm.ld -Wl,--gc-sections -Wl,-Map,$(CALC_DIR)/$(CALC_NAME).map \
-		-DSM50_PACK_PATH='"content/sm50.pack"' -o $@ $(CALC_ASM) $(CALC_PACK_OBJ) $(CALC_SRC) $(CALC_PS1_OBJECTS) -lgcc
+		-DSM50_PACK_PATH='"content/sm50.pack"' -o $@ $(CALC_ASM) $(CALC_PACK_OBJ) $(CALC_SRC) $(CALC_PS1_OBJECTS) $(CALC_NATIVE_BRIDGE) -lgcc
 
 $(CALC_DIR)/native/mario_actions_moving.c.o: $(PS1_PORT)/src/game/mario_actions_moving.c
 	@mkdir -p $(CALC_DIR)/native
@@ -59,6 +60,9 @@ $(CALC_DIR)/native/ps1_softfloat_bridge.c.o: src/platform/casio/ps1_softfloat_br
 $(CALC_DIR)/native/native_sm64_movement_probe.c.o: tests/native_sm64_movement_probe.c
 	@mkdir -p $(CALC_DIR)/native
 	$(SH_CC) $(CALC_PS1_CFLAGS) -c $< -o $@
+$(CALC_DIR)/native/native_sm64_collision_bridge.c.o: src/platform/casio/native_sm64_collision_bridge.c src/engine/world.h
+	@mkdir -p $(CALC_DIR)/native
+	$(SH_CC) $(CALC_CFLAGS) -c $< -o $@
 
 $(CALC_DIR)/$(CALC_NAME).bin: $(CALC_DIR)/$(CALC_NAME).elf
 	$(SH_OBJCOPY) -O binary -R .bss $< $@
