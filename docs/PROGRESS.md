@@ -122,6 +122,17 @@ optimization case study rather than copied as a whole.
   against the actual ROM geometry. Cutscene actions, object interactions,
   object behavior runtime, level scripts and original camera are outstanding.
 
+- Interaction-dispatch experiment: Mario's native tick now invokes the
+  decompilation's `mario_process_interactions()` instead of calling the star
+  handler directly. The original handler table and collision-object lookup
+  compile for SH4; startup validation detects overlap with the ROM-placed star,
+  collects it through the original dispatcher, checks the original save-bit
+  path, and advances the original star-removal behavior. The emulator passes
+  that end-to-end check and a 120-frame jump/landing run. Stubs remain for
+  unsupported platform, cap, door and warp systems; ordinary level objects are
+  not yet instantiated into the canonical pool, so this does not claim general
+  object interaction support.
+
 - ROM-derived object handoff: the converter writes every one of Bob-omb
   Battlefield's 21 level-script placements to a new `SOBJ` pack entry, keeping
   the source model, transform, segmented behavior address and behavior

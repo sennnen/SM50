@@ -53,8 +53,7 @@ extern void *sys_malloc(u32 size);
 extern struct Object *try_allocate_object(struct ObjectNode *destList,
                                           struct ObjectNode *freeList);
 extern void detect_object_collisions(void);
-extern struct Object *mario_get_collided_object(struct MarioState *m, u32 interactType);
-extern u32 interact_star_or_key(struct MarioState *m, u32 interactType, struct Object *o);
+extern void mario_process_interactions(struct MarioState *m);
 extern s32 act_star_dance(struct MarioState *m);
 extern void native_sm64_canonical_tick(u16 buttons, u16 cameraYaw);
 extern volatile s32 native_sm64_canonical_pos_x_q8;
@@ -128,6 +127,11 @@ void fadeout_level_music(s16 fadeTimer) { (void)fadeTimer; }
 void disable_background_sound(void) {}
 void enable_background_sound(void) {}
 void play_course_clear(void) {}
+void play_cap_music(u16 seqArgs) { (void)seqArgs; }
+u32 save_file_get_flags(void) { return 0; }
+void bhv_spawn_star_no_level_exit(u32 starIndex) { (void)starIndex; }
+const u8 warp_pipe_seg3_collision_03009AC8[] = { 0 };
+void abort(void) { for (;;) {} }
 void play_music(u8 player, u16 seqArgs, u16 fadeTimer) {
     (void)player; (void)seqArgs; (void)fadeTimer;
 }
@@ -166,6 +170,9 @@ const BehaviorScript bhvCarrySomething3[] = { 0 };
 const BehaviorScript bhvCarrySomething4[] = { 0 };
 const BehaviorScript bhvCarrySomething5[] = { 0 };
 const BehaviorScript bhvNormalCap[] = { 0 };
+const BehaviorScript bhvMetalCap[] = { 0 };
+const BehaviorScript bhvWingCap[] = { 0 };
+const BehaviorScript bhvVanishCap[] = { 0 };
 const BehaviorScript bhvBowser[] = { 0 };
 const BehaviorScript bhvHauntedChair[] = { 0 };
 const BehaviorScript bhvMadPiano[] = { 0 };
@@ -588,15 +595,7 @@ void native_sm64_canonical_tick(u16 buttons, u16 cameraYaw) {
     }
 
     update_mario_inputs(&sNativeMario);
-    if (!(sNativeMario.action & ACT_FLAG_INTANGIBLE) &&
-        (sNativeMario.collidedObjInteractTypes & INTERACT_STAR_OR_KEY)) {
-        struct Object *star = mario_get_collided_object(&sNativeMario, INTERACT_STAR_OR_KEY);
-        if (star && !(star->oInteractStatus & INT_STATUS_INTERACTED)) {
-            gCurrentObject = star;
-            (void)interact_star_or_key(&sNativeMario, INTERACT_STAR_OR_KEY, star);
-            gCurrentObject = sNativeMarioObject;
-        }
-    }
+    mario_process_interactions(&sNativeMario);
     if (sNativeMario.floor) {
         s32 inLoop = TRUE;
         while (inLoop) {

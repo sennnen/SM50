@@ -231,13 +231,20 @@ any of those scripts can safely execute.
 
 The experiment now runs canonical stationary, moving, airborne, submerged,
 automatic and object action dispatch with the decompilation's floor, wall and
-ceiling queries against ROM collision. Full Battlefield placements are now
-preserved and decoded, but the cutscene action group, object behaviors, level
-scripts, original camera, audio and progression remain unconnected. The next
-port layer should connect the bounded canonical object pool and behavior
-interpreter to retained Battlefield spawns, then replace object-interaction
-stubs. Keep rendering as a backend that consumes original game state and ROM
-geometry.
+ceiling queries against ROM collision. Mario's native tick calls the original
+`mario_process_interactions()` dispatcher; a startup self-check collides with
+the actual ROM-placed Battlefield star, exercises the canonical save-bit and
+star-dance path, then verifies the original star deletion behavior. This
+proves the handler table can run natively with the current adapters, but the
+other 20 level-script placements and macro objects are not yet initialized in
+the canonical pool. Unsupported cap, warp, save and sound dependencies use
+backend stubs, and the fatal `abort()` path remains guarded. The cutscene action
+group, general object behaviors, level scripts, original camera, audio and
+persistent save progression remain unconnected. The next port layer should
+initialize retained Battlefield spawns in the bounded canonical pool, run their
+canonical behavior scripts, and route collision results through the original
+dispatcher. Keep rendering
+as a backend that consumes original game state and ROM geometry.
 
 ## PS1 port comparison and object-runtime link test
 

@@ -68,6 +68,8 @@ def main():
             print(result.stdout, end="")
             if marker not in result.stdout:
                 raise SystemExit("native movement probe did not report PASS")
+            if args.source == "canonical" and "SM64 canonical star interaction PASS" not in result.stdout:
+                raise SystemExit("canonical probe did not pass the original star-interaction dispatch")
         else:
             print(f"Emulator not found at {emulator}; add-in was built but not run.")
 
