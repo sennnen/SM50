@@ -191,3 +191,32 @@ port layer should connect the bounded canonical object pool and behavior
 interpreter to retained Battlefield spawns, then replace object-interaction
 stubs. Keep rendering as a backend that consumes original game state and ROM
 geometry.
+
+## PS1 port comparison and object-runtime link test
+
+The local `../psx2` checkout is a useful engineering reference, not a drop-in
+port layer. Its README says it forked the decompilation and then became PS1/PC
+only; it adapts large portions of game math to fixed-point vectors/matrices,
+keeps low-precision soft-float for remaining float code, rewrites the render
+graph walker, and compiles RSP display lists to a compact PS1 format. It also
+compresses Mario animation data from 580,632 to 190,324 bytes and places it in
+VRAM. Its own notes report level-load crashes and recommend 8 MiB in emulators
+to reduce crashes; retail PS1 has 2 MiB main RAM. Those graphics, VRAM, and
+memory assumptions do not transfer to the calculator. The useful lesson is to
+keep original gameplay code while replacing math/render/audio/platform seams,
+not to adopt the PS1 renderer or its global memory layout. The PS1 fork's local
+worktree also contains unrelated uncommitted edits; it has been left untouched.
+
+On this SH4 toolchain, canonical `behavior_script.c` compiles to 4,524 B of
+text, and `data/behavior_data.c` compiles to 22,172 B of script data. A first
+whole-source link experiment that rooted `cur_obj_update` and `bhvStar` did not
+link: the command table retains engine hooks, and the behavior source units
+expose callbacks and data references for camera, dialog, sound, animation, and
+level assets that this backend does not define. The experiment was removed
+rather than leaving a broken build target. This does not make the native route
+infeasible; it identifies the next seam precisely. A working object runtime
+needs a generated behavior-address catalog and a linkable subset of canonical
+scripts/callbacks, with real platform hooks for the subset being enabled.
+Linking the complete behavior and object-helper translation units as a single
+unit is too broad for the current backend. No gameplay credit is assigned to
+this compile-only result.
