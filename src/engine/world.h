@@ -57,6 +57,7 @@ typedef struct {
 
 typedef struct {
     u32 dl; s16 radius; u16 billboard;
+    u16 scale14; /* optional per-model scale; zero uses the engine default */
 } Model;
 
 #define MAX_OBJS 96
@@ -77,6 +78,8 @@ typedef struct {
     Pack pack;
     s32 spawn_x, spawn_y, spawn_z; u16 spawn_yaw;
     s32 water_y, death_y;
+    u16 player_scale, player_rot_z;
+    s16 player_yoff;
     u16 sky_top, sky_bottom, fog;
     char name[17];
     Chunk chunks[MAX_CHUNKS]; int n_chunks;

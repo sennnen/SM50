@@ -29,7 +29,10 @@ include src/platform/casio/calc.mk
 test: host content
 	python3 tests/run_tests.py
 
+test-rom: host
+	python3 tests/test_sm64_rom.py "$$SM64_ROM"
+
 clean:
 	rm -rf build
 
-.PHONY: all content host calc test clean
+.PHONY: all content host calc test test-rom clean

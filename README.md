@@ -1,17 +1,47 @@
-# SM50
+# SM64 on the fx-CG50: ROM-driven port in progress
 
-An original fixed-point 3D platformer engine for the Casio fx-CG50 (SH4, no FPU), with an N64-style Fast3D display-list renderer, collision, a third-person character controller, an original character and level, a headless emulator test harness and a macOS installer. See `MORNING-STATUS.md` for status and scope.
+This project has an original fixed-point calculator engine and a converter for
+data in a user-supplied Super Mario 64 ROM. It now renders **actual Bob-omb
+Battlefield geometry and low-poly Mario meshes from the US ROM**. Movement,
+camera and current character poses are independently implemented approximations.
+The complete game is **not yet playable**; see [docs/PROGRESS.md](docs/PROGRESS.md).
 
-## Install (macOS): ./install-sm50.command [rom] [manifest]
-    (validates the ROM, converts it with tools/n64pack.py, attaches it to dist/SM50-engine.bin, copies to the calculator)
+No ROM or extracted Nintendo assets are in this repository. The canonical US
+ROM (SHA-1 `9bef1128717f958171a4afac3ed78ee2bb4e86ce`) is needed locally.
+The converter validates this hash before it creates a Battlefield pack.
 
-## Build from source (Linux or macOS)
-    tools/build-toolchain.sh <dir-with-binutils_2.45.orig.tar.xz-and-gcc-14_14.3.0.orig.tar.gz> /opt/sh-elf
-    make content host calc      # content pack, host test runner, build/calc/SM50.g3a
-    emu/fetch-and-build.sh      # headless emulator (sm50emu)
-    make test
+## Build the current Battlefield preview on macOS
 
-Source tarballs: https://archive.ubuntu.com/ubuntu/pool/main/b/binutils/ and .../pool/main/g/gcc-14/.
+Connect the calculator in USB Flash mode, then run:
 
-## Licences
-SM50 code and content are original. libfxcg (BSD) was used as a reference for syscall numbers. casio-emu (Heath123) is fetched at build time and patched; it is not redistributed here.
+```sh
+./install-sm50.command "/path/to/your/sm64.us.z64"
+```
+
+The installer uses `manifests/sm64-us-bob.json`, Python 3 and the committed
+prebuilt engine. It creates `build/SM50.g3a` and copies it to the calculator.
+It does not require a development toolchain. To build without copying, run:
+
+```sh
+python3 tools/n64pack.py manifests/sm64-us-bob.json --rom "/path/to/your/sm64.us.z64" -o build/us-bob.pack
+python3 tools/build-g3a.py dist/SM50-engine.bin build/us-bob.pack build/SM50.g3a
+```
+
+Generated files stay in ignored `build/`. Never add your ROM, packs, screenshots
+of ROM content or generated add-ins to Git.
+
+## Developer verification
+
+```sh
+make host
+SM64_ROM="/path/to/your/sm64.us.z64" make test-rom
+```
+
+Set `SM50EMU=/path/to/sm50emu` to include the calculator emulator in
+`test-rom`. `make test` runs the 19 original synthetic groups. `make calc`
+rebuilds the engine when an `sh-elf` toolchain is available.
+
+The converter, renderer and engine are independently written. The
+[SM64 decompilation](https://github.com/n64decomp/sm64) and the local PS1
+port were used as technical references for ROM formats and addresses; no
+decompiled game source is included in this repository.

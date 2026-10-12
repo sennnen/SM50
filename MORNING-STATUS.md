@@ -1,4 +1,6 @@
-# SM50 status
+# SM50 status (archived snapshot before ROM integration)
+
+For current results, see `docs/PROGRESS.md`.
 
 ## What works (verified, `make test`: 19/19 groups)
 

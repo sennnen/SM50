@@ -2,7 +2,7 @@
 """SM50 automated tests: unit tests, deterministic gameplay runs on the host
 build, content-pack validation, g3a validation and (if built) an emulator run
 of the real calculator add-in with screenshot checks."""
-import json, os, re, struct, subprocess, sys
+import json, os, re, struct, subprocess, sys, zlib
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "build", "test-results")
@@ -134,15 +134,38 @@ if os.path.exists(emu) and os.path.exists(g3a):
     fps = re.search(r"est\. HW fps\s*:\s*([\d.]+)", r.stdout)
     record("emulator: add-in boots and presents 100 frames", ok, f"est. {fps.group(1) if fps else '?'} fps (instruction-count estimate)")
     try:
-        from PIL import Image
-        a = Image.open(os.path.join(eo, "frame_000001.png")).convert("RGB")
-        b = Image.open(os.path.join(eo, "frame_000070.png")).convert("RGB")
-        colours = len(set(b.get_flattened_data()))
-        diff = sum(1 for p, q in zip(a.get_flattened_data(), b.get_flattened_data()) if p != q)
+        def read_emulator_png(path):
+            # The bundled emulator emits RGB8 PNGs with filter type zero.
+            # Read those directly so the test has no Pillow dependency.
+            data = open(path, "rb").read()
+            assert data[:8] == b"\x89PNG\r\n\x1a\n"
+            pos, compressed, width, height = 8, bytearray(), 0, 0
+            while pos < len(data):
+                length = struct.unpack_from(">I", data, pos)[0]
+                tag, body = data[pos + 4:pos + 8], data[pos + 8:pos + 8 + length]
+                pos += 12 + length
+                if tag == b"IHDR":
+                    width, height = struct.unpack_from(">II", body)
+                    assert body[8:13] == b"\x08\x02\x00\x00\x00"
+                elif tag == b"IDAT":
+                    compressed.extend(body)
+                elif tag == b"IEND":
+                    break
+            raw = zlib.decompress(compressed)
+            row = width * 3 + 1
+            assert len(raw) == row * height
+            assert all(raw[y * row] == 0 for y in range(height))
+            return [raw[y * row + 1 + x * 3:y * row + 4 + x * 3]
+                    for y in range(height) for x in range(width)]
+
+        a = read_emulator_png(os.path.join(eo, "frame_000001.png"))
+        b = read_emulator_png(os.path.join(eo, "frame_000070.png"))
+        colours = len(set(b))
+        diff = sum(1 for p, q in zip(a, b) if p != q)
         record("emulator: 3D scene rendered and changes with input", colours > 50 and diff > 5000,
                f"{colours} colours in frame 70, {diff} pixels changed since frame 1")
-    except ImportError:
-        record("emulator: screenshot analysis", False, "PIL not installed")
+    except (AssertionError, OSError, zlib.error) as exc:
+        record("emulator: screenshot analysis", False, str(exc))
     r = run([emu, "--keys", "tests/scripts/emu_play.txt", "--outdir", eo, "--shot-at", "60", "--max-frames", "80",
              "--max-wall", "300", g3a_synth], timeout=400)
     open(os.path.join(eo, "summary-synth.txt"), "w").write(r.stdout + r.stderr)

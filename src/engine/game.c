@@ -222,7 +222,14 @@ static void draw_skeleton(const Player *p) {
     const u8 *fr = a->raw + 8 + (u32)f * (2 + 6 * a->nparts);
     s32 rooty = BES16(fr);
     Mat34 world[MAX_PARTS], root, tmp;
-    mat_from_trs(&root, p->x >> 8, p->y >> 8, p->z >> 8, 0, p->face_yaw, 0, ONE14);
+    mat_from_trs(&root, p->x >> 8, (p->y >> 8) + L->player_yoff, p->z >> 8,
+                 0, p->face_yaw, 0, ONE14);
+    if (L->player_rot_z || L->player_scale != ONE14) {
+        Mat34 orient;
+        mat_from_trs(&orient, 0, 0, 0, 0, 0, L->player_rot_z, L->player_scale);
+        mat_mul(&tmp, &root, &orient);
+        root = tmp;
+    }
     if (p->roll) {
         Mat34 r; mat_from_trs(&r, 0, 80, 0, p->roll, 0, 0, ONE14);
         Mat34 back; mat_identity(&back); back.m[1][3] = -80;
@@ -255,6 +262,7 @@ static void draw_model(int idx, s32 x, s32 y, s32 z, u16 yaw, s32 scale) {
     if (idx >= gLevel.n_models) return;
     const Model *m = &gLevel.models[idx];
     if (!gfx_sphere_visible(x, y, z, m->radius)) return;
+    if (m->scale14) scale = m->scale14;
     if (m->billboard) gfx_set_model_billboard(x, y, z, scale);
     else { Mat34 w; mat_from_trs(&w, x, y, z, 0, yaw, 0, scale); gfx_set_model(&w); }
     gfx_run_dl(m->dl);

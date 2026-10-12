@@ -21,6 +21,7 @@ import argparse, json, math, os, struct, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from n64 import rom as n64rom, mio0, f3d  # noqa: E402
 from n64.segments import Segments  # noqa: E402
+from n64 import sm64_collision, sm64_macros, sm64_mario, sm64_level_script  # noqa: E402
 
 
 def num(v):
@@ -103,11 +104,18 @@ def build(manifest, base_dir, log=print):
                                   min(32767, int(r) + 1), layer, 0, tx, ty, tz, 0))
         if c.get("collision", layer != 2):
             for t in info.tris:
-                col.append(tuple((p[0] + tx, p[1] + ty, p[2] + tz) for p in t))
+                col.append((tuple((p[0] + tx, p[1] + ty, p[2] + tz) for p in t), 0))
+    if "sm64_collision" in m:
+        # SM64 collision is authored separately from rendering geometry and
+        # includes floors/walls hidden from the display lists.
+        addr = num(m["sm64_collision"])
+        data, off = segs.resolve(addr)
+        col = sm64_collision.read(data, off)
+        log("SM64 collision %08X: %d triangles" % (addr, len(col)))
     pw.add("LVL2", struct.pack(">I", len(chunks)) + b"".join(chunks))
     colb = bytearray(struct.pack(">I", 0))
     nc = 0
-    for a, b_, c_ in col:
+    for (a, b_, c_), surface in col:
         ux, uy, uz = b_[0] - a[0], b_[1] - a[1], b_[2] - a[2]
         vx, vy, vz = c_[0] - a[0], c_[1] - a[1], c_[2] - a[2]
         n = (uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx)
@@ -117,11 +125,71 @@ def build(manifest, base_dir, log=print):
         vals = [int(v) for p in (a, b_, c_) for v in p] + [int(round(x / ln * 16384)) for x in n]
         if any(abs(v) > 32767 for v in vals):
             continue
-        colb += struct.pack(">9h3hHH", *vals, 0, 0)
+        colb += struct.pack(">9h3hHH", *vals, surface, 0)
         nc += 1
     struct.pack_into(">I", colb, 0, nc)
     pw.add("COLV", colb)
-    sp = [num(v) for v in m.get("spawn", [0, 0, 0, 0])]
+    objects = []
+    rom_spawn = None
+    if "sm64_macro_objects" in m:
+        data, off = segs.resolve(num(m["sm64_macro_objects"]))
+        native = sm64_macros.read(data, off)
+        # The manifest opts in to presets whose behaviour we currently model.
+        # Other native objects remain available for later conversion stages.
+        preset_types = {num(k): num(v) for k, v in m.get("sm64_macro_types", {}).items()}
+        objects += [(preset_types[p], x, y, z, yaw, param)
+                    for p, x, y, z, yaw, param in native if p in preset_types]
+        log("SM64 macro objects: %d parsed, %d supported" % (len(native), len(objects)))
+    if "sm64_level_script" in m:
+        spec = m["sm64_level_script"]
+        if rom is None:
+            raise ValueError("SM64 level script requires ROM bytes")
+        start, end = (num(v) for v in spec["rom"])
+        if not 0 <= start < end <= len(rom):
+            raise ValueError("SM64 level-script ROM range is invalid")
+        script = sm64_level_script.read(rom[start:end], num(spec["entry"]),
+                                        num(spec.get("segment", 14)), num(spec.get("act", 1)))
+        if script["terrain"] != num(m.get("sm64_collision", -1)):
+            raise ValueError("level-script terrain pointer differs from collision manifest")
+        if script["macro_objects"] != num(m.get("sm64_macro_objects", -1)):
+            raise ValueError("level-script macro pointer differs from object manifest")
+        model_types = {num(k): num(v) for k, v in spec.get("model_types", {}).items()}
+        mapped = [(model_types[model], x, y, z, (yaw * 65536 // 360) & 0xFFFF, (param >> 16) & 0xFFFF)
+                  for model, x, y, z, pitch, yaw, roll, param, behaviour in script["objects"]
+                  if model in model_types]
+        objects += mapped
+        if "spawn_warp" in spec:
+            warp_id = num(spec["spawn_warp"])
+            matches = [(x, y, z, (yaw * 65536 // 360) & 0xFFFF)
+                       for model, x, y, z, pitch, yaw, roll, param, behaviour in script["objects"]
+                       if (param >> 16) == warp_id and model == 0]
+            if len(matches) != 1:
+                raise ValueError("expected one SM64 spawn warp %d; found %d" % (warp_id, len(matches)))
+            rom_spawn = matches[0]
+        log("SM64 level script: %d objects parsed, %d supported" % (len(script["objects"]), len(mapped)))
+    if objects:
+        if len(objects) > 96:
+            raise ValueError("more than 96 supported objects; engine limit reached")
+        pw.add("OBJS", struct.pack(">I", len(objects)) + b"".join(
+            struct.pack(">HhhhHH", *obj) for obj in objects))
+    if "models" in m:
+        models = m["models"]
+        if len(models) > 16:
+            raise ValueError("more than 16 models; engine limit reached")
+        pw.add("MDLS", struct.pack(">I", len(models)) + b"".join(
+            struct.pack(">IhH", num(model["dl"]), num(model["radius"]),
+                        int(bool(model.get("billboard", False)))) for model in models))
+        if any("scale14" in model for model in models):
+            pw.add("MSCL", struct.pack(">I", len(models)) + b"".join(
+                struct.pack(">H", num(model.get("scale14", 0))) for model in models))
+    if m.get("sm64_mario"):
+        skeleton, animations, player = sm64_mario.build(segs, f3d.walk)
+        pw.add("SKEL", skeleton)
+        pw.add("ANIM", animations)
+        pw.add("PLYR", player)
+        log("Mario: %d ROM mesh parts, %d generated pose sequences" %
+            (len(sm64_mario.PARTS), 8))
+    sp = [num(v) for v in m["spawn"]] if "spawn" in m else (rom_spawn or [0, 0, 0, 0])
     sky = m.get("sky", ["#5D9FFF", "#B6FFFF"])
     name = m.get("name", "N64 SCENE").upper().encode()[:16]
     pw.add("INFO", struct.pack(">hhhHhhHHHH", sp[0], sp[1], sp[2], sp[3] & 0xFFFF, -32768, -32768,

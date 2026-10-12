@@ -1,0 +1,34 @@
+{
+  "sha1": "9bef1128717f958171a4afac3ed78ee2bb4e86ce",
+  "segments": [
+    {"seg": 3, "rom": ["0x201410", "0x22C430"], "mio0": true},
+    {"seg": 4, "rom": ["0x114750", "0x12A7E0"], "mio0": true},
+    {"seg": 7, "rom": ["0x3FC2B0", "0x405A60"], "mio0": true},
+    {"seg": 9, "rom": ["0x32D070", "0x334B30"], "mio0": true}
+  ],
+  "chunks": [
+    {"dl": "0x07004390", "layer": 0, "collision": false},
+    {"dl": "0x07009D80", "layer": 0, "collision": false},
+    {"dl": "0x0700A470", "layer": 2, "collision": false},
+    {"dl": "0x0700A920", "layer": 1, "collision": false},
+    {"dl": "0x0700DD18", "layer": 0, "collision": false},
+    {"dl": "0x0700E338", "layer": 0, "collision": false}
+  ],
+  "sm64_collision": "0x0700E958",
+  "sm64_macro_objects": "0x0701104C",
+  "sm64_level_script": {
+    "rom": ["0x405A60", "0x405EE8"],
+    "entry": "0x0E000264",
+    "act": 1,
+    "spawn_warp": 10,
+    "model_types": {"0x7A": 2}
+  },
+  "sm64_mario": true,
+  "sm64_macro_types": {"0": 1, "1": 1, "15": 1, "16": 1, "17": 1, "18": 1, "19": 1},
+  "models": [
+    {"dl": "0x03007800", "radius": 80, "billboard": true},
+    {"dl": "0x0302B870", "radius": 100, "scale14": 4096}
+  ],
+  "name": "BOB-OMB BATTLEFIELD",
+  "sky": ["#79B9FF", "#C8E6FF"]
+}

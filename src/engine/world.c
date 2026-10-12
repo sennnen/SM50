@@ -234,6 +234,12 @@ int level_load(const void *pack_mem, u32 size, u8 *col_work, u32 col_work_size) 
     L->water_y = BES16(p + 8); L->death_y = BES16(p + 10);
     L->sky_top = BE16(p + 12); L->sky_bottom = BE16(p + 14); L->fog = BE16(p + 16);
     memcpy(L->name, p + 20, 16); L->name[16] = 0;
+    L->player_scale = ONE14;
+    if ((p = pack_find(&L->pack, "PLYR", NULL))) {
+        L->player_scale = BE16(p);
+        L->player_rot_z = BE16(p + 2);
+        L->player_yoff = BES16(p + 4);
+    }
 
     /* raw segment blobs (e.g. decompressed N64 data): entries "SGxx" map segment xx */
     for (u32 i = 0; i < L->pack.n_entries; i++) {
@@ -273,6 +279,10 @@ int level_load(const void *pack_mem, u32 size, u8 *col_work, u32 col_work_size) 
         const u8 *m = p + 4 + i * 8;
         L->models[i].dl = BE32(m); L->models[i].radius = BES16(m + 4); L->models[i].billboard = BE16(m + 6);
     }
+    }
+    if ((p = pack_find(&L->pack, "MSCL", NULL))) {
+        int n = (int)MIN(BE32(p), (u32)L->n_models);
+        for (int i = 0; i < n; i++) L->models[i].scale14 = BE16(p + 4 + i * 2);
     }
     if ((p = pack_find(&L->pack, "SKEL", NULL))) {
     L->n_parts = (int)MIN(BE32(p), MAX_PARTS);

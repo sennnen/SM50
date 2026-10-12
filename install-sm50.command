@@ -23,10 +23,8 @@ fi
 grn "ROM: $ROM"
 python3 tools/n64info.py "$ROM" || die "ROM validation failed"
 
-MANIFEST="${2:-rom-manifest.json}"
-[ -f "$MANIFEST" ] || die "no conversion manifest ($MANIFEST). SM50 converts a ROM by following a manifest that
-       lists the ROM ranges, segments and display lists to load (format: tools/n64pack.py --help).
-       No manifest for this ROM is included; see MORNING-STATUS.md."
+MANIFEST="${2:-manifests/sm64-us-bob.json}"
+[ -f "$MANIFEST" ] || die "no conversion manifest ($MANIFEST)."
 mkdir -p build
 python3 tools/n64pack.py "$MANIFEST" --rom "$ROM" -o build/rom.pack || die "conversion failed"
 python3 tools/build-g3a.py dist/SM50-engine.bin build/rom.pack build/SM50.g3a || die "add-in build failed"
@@ -69,5 +67,6 @@ cmp -s "$G3A" "$VOL/SM50.g3a" || die "verification after copy failed"
 rm -f "$VOL/._SM50.g3a" 2>/dev/null
 grn "Copied and verified SM50.g3a."
 command -v diskutil >/dev/null 2>&1 && { diskutil eject "$VOL" >/dev/null 2>&1 && grn "Calculator ejected." || echo "Eject manually before unplugging."; }
+echo "Battlefield preview: geometry and Mario meshes come from your ROM; full SM64 gameplay is still in progress."
 echo "On the calculator: MENU -> SM50. Arrows move, SHIFT jump, F1/F2 camera, F3 zoom, F4 speed mode, F6 FPS, EXIT pause."
 read -r -p "Press Return to close..." _ || true
