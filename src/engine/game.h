@@ -38,7 +38,7 @@ typedef struct {
     s32 floor_ny;
     int on_ground;
     int anim, anim_frame;  /* frame in Q4 for speed control */
-    int health, coins, stars, invuln, lives;
+    int health, coins, red_coins, stars, invuln, lives;
     s32 safe_x, safe_y, safe_z;
 } Player;
 

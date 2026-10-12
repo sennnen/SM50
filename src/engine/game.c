@@ -19,7 +19,8 @@ int game_init(const void *pack, u32 size, u8 *work, u32 work_size) {
     c->pitch = 0x0A00; c->dist = c->target_dist = 900;
     c->fx = p->x >> 8; c->fy = (p->y >> 8) + 100; c->fz = p->z >> 8;
     gGame.title = 1;
-    for (int i = 0; i < gLevel.n_objs; i++) if (gLevel.objs[i].type == OBJ_STAR) gGame.stars_total++;
+    for (int i = 0; i < gLevel.n_objs; i++)
+        if (gLevel.objs[i].type == OBJ_STAR || gLevel.objs[i].type == OBJ_RED_STAR_TRIGGER) gGame.stars_total++;
     return 0;
 }
 
@@ -120,6 +121,19 @@ static void objects_tick(Player *p) {
                 if (dist2(px, py + 60, pz, o->x, o->y, o->z) < 110 * 110) {
                     o->active = 0; p->coins++;
                     if (p->health < 8) p->health++;
+                }
+                break;
+            case OBJ_RED_COIN:
+                o->yaw = (u16)(o->yaw + 0x0800);
+                if (dist2(px, py + 60, pz, o->x, o->y, o->z) < 110 * 110) {
+                    o->active = 0; p->coins += 2; p->red_coins++;
+                    if (p->health < 8) p->health++;
+                    if (p->red_coins == gLevel.red_coins_total) show_msg("RED COIN STAR!");
+                }
+                break;
+            case OBJ_RED_STAR_TRIGGER:
+                if (gLevel.red_coins_total > 0 && p->red_coins >= gLevel.red_coins_total) {
+                    o->type = OBJ_STAR; o->timer = 0;
                 }
                 break;
             case OBJ_STAR:
@@ -243,8 +257,10 @@ static void draw_skeleton(const Player *p) {
         mat_from_trs(&local, pt->px, ty, pt->pz, BE16(rot), BE16(rot + 2), BE16(rot + 4), ONE14);
         const Mat34 *par = pt->parent >= 0 && pt->parent < i ? &world[pt->parent] : &root;
         mat_mul(&world[i], par, &local);
-        gfx_set_model(&world[i]);
-        gfx_run_dl(pt->dl);
+        if (pt->dl) {
+            gfx_set_model(&world[i]);
+            gfx_run_dl(pt->dl);
+        }
     }
 }
 
@@ -304,6 +320,10 @@ static void draw_hud(int show_fps, int fps10) {
     gfx_draw_text(4, 4 + 8 * s, buf, 0xFFE0, s);
     snprintf(buf, sizeof(buf), "STAR %d/%d LIFE %d", p->stars, gGame.stars_total, p->lives);
     gfx_draw_text(4, 4 + 17 * s, buf, 0xFFFF, s);
+    if (gLevel.red_coins_total) {
+        snprintf(buf, sizeof(buf), "RED %d/%d", p->red_coins, gLevel.red_coins_total);
+        gfx_draw_text(4, 4 + 26 * s, buf, 0xF800, s);
+    }
     if (show_fps) {
         snprintf(buf, sizeof(buf), "%d.%d FPS", fps10 / 10, fps10 % 10);
         gfx_draw_text(gfx_width() - gfx_text_width(buf, s) - 4, 4, buf, 0x07FF, s);
@@ -338,6 +358,7 @@ void game_render(int show_fps, int fps10) {
                 if (!o->active) continue;
                 switch (o->type) {
                     case OBJ_COIN: draw_model(0, o->x, o->y, o->z, o->yaw, ONE14); break;
+                    case OBJ_RED_COIN: draw_model(2, o->x, o->y, o->z, o->yaw, ONE14); break;
                     case OBJ_STAR: draw_model(1, o->x, o->y, o->z, o->yaw, ONE14 * 2); break;
                     case OBJ_TREE: draw_model(2, o->x, o->y, o->z, 0, ONE14); break;
                     case OBJ_BLOB: draw_model(3, o->x, o->y, o->z, o->yaw, o->state ? ONE14 / 2 : ONE14); break;

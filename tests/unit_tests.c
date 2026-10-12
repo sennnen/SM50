@@ -171,6 +171,15 @@ static void test_render(void) {
     int bottom = 0, top = 0;
     for (int x = 0; x < W; x++) { bottom += fb[(H - 1) * W + x] != 0; top += fb[x] != 0; }
     CHECK(bottom == W && top == 0, "ground plane clip: bottom row %d/%d filled, top row %d", bottom, W, top);
+    /* A list without ENDDL must stop at the segment boundary. */
+    DLB truncated; truncated.n = 0;
+    cmd(&truncated, 0, 0);
+    u32 truncated_dl = dl_put(&truncated);
+    gfx_set_segment_sized(7, mem, memp);
+    u32 commands_before = gGfxStats.dl_cmds;
+    gfx_run_dl(truncated_dl);
+    CHECK(gGfxStats.dl_cmds == commands_before + 1 && gfx_seg_to_ptr(0x07000000 | memp) == NULL,
+          "display list and address stop at segment boundary");
     printf("render tests: tris_in=%u drawn=%u culled=%u\n", gGfxStats.tris_in, gGfxStats.tris_drawn, gGfxStats.tris_culled);
 }
 

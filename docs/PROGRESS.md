@@ -7,15 +7,18 @@
   decompress from the ROM. Six area display lists contain 1,101 triangles.
 - The native collision stream at `0x0700E958` contributes 1,060 triangles.
   The host controller lands on and moves across this terrain.
-- The native macro-object list provides five supported yellow coins. The
-  native level script supplies the spawn warp and one directly placed star.
-  Both coin and star collection were verified in the host runner.
-- Fifteen low-poly Mario mesh parts and their textures are read from the ROM.
-  Eight small pose sequences are generated independently by the converter.
-- A 723 KB `.g3a` with real ROM-derived content passed the add-in checksum
+- The native macro-object list provides five supported yellow coins and eight
+  red coins. The native level script supplies the spawn warp, a directly placed
+  star and the red-coin hidden-star trigger. Collection of both coin types and
+  both star paths was verified in the host runner.
+- Twenty low-poly Mario geo joints and their textures are read from the ROM.
+  Eight action animations are decoded from the native ROM animation table.
+  The current controller chooses the actions; root translation and original
+  animation timing are not yet reproduced.
+- A 750 KB `.g3a` with real ROM-derived content passed the add-in checksum
   validator and ran for 80 frames in the headless CG50 emulator. Screenshots
-  were visually inspected. The latest run with Mario and Battlefield terrain
-  estimated about 29 FPS from instruction counts. This is **not a measured
+  were visually inspected. The latest 80-frame run with native Mario poses and
+  Battlefield terrain estimated about 59 FPS from instruction counts. This is **not a measured
   frame rate on the physical calculator**.
 - The existing synthetic regression suite passes 19/19 groups. Its PNG check
   now uses the Python standard library, so Pillow is unnecessary.
@@ -26,13 +29,12 @@ only under ignored `build/`.
 
 ## Not complete
 
-- The engine does not interpret native SM64 animations or reproduce Mario's
-  full movement state machine. Its current movement, camera and poses are
-  approximations.
+- The engine does not reproduce Mario's full movement state machine. Movement
+  and camera are approximations, and the native animation poses need further
+  visual tuning on the calculator screen.
 - Most object behaviours are not implemented: enemies, the King Bob-omb
-  fight, red coin activation, moving platforms, cannons, switches and warps.
-  Only five yellow coins and the directly placed star are active in this
-  Battlefield preview.
+  fight, moving platforms, cannons, switches and warps. Five yellow coins,
+  eight red coins and two star paths are active in this Battlefield preview.
 - The converter handles one exact ROM revision and one level. It does not yet
   interpret arbitrary level scripts or geo layouts, nor does it stream later
   levels from storage.
@@ -48,7 +50,6 @@ renderer, collision and a headless emulator, so it became the integration
 base. The PS1 port remains a useful reference, but its unresolved build and
 licensing questions made it a poor replacement for the calculator engine.
 
-The next substantive work is native Mario animation decoding, object and
-mission state for the first Battlefield star, and enough scene/level scripting
+The next substantive work is the King Bob-omb encounter and enough scene/level scripting
 to enter and complete that mission. Rendering fidelity and resolution should
 be reduced as needed after measuring on hardware.

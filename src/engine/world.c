@@ -227,7 +227,7 @@ int level_load(const void *pack_mem, u32 size, u8 *col_work, u32 col_work_size) 
     Level *L = &gLevel;
     memset(L, 0, sizeof(*L));
     if (!pack_open(&L->pack, pack_mem, size)) return -1;
-    gfx_set_segment(7, L->pack.data);
+    gfx_set_segment_sized(7, L->pack.data, size - (u32)(L->pack.data - L->pack.base));
     const u8 *p;
     if (!(p = pack_find(&L->pack, "INFO", NULL))) return -2;
     L->spawn_x = BES16(p); L->spawn_y = BES16(p + 2); L->spawn_z = BES16(p + 4); L->spawn_yaw = BE16(p + 6);
@@ -247,7 +247,7 @@ int level_load(const void *pack_mem, u32 size, u8 *col_work, u32 col_work_size) 
         if (e[0] == 'S' && e[1] == 'G') {
             int hi = e[2] <= '9' ? e[2] - '0' : (e[2] | 0x20) - 'a' + 10;
             int lo = e[3] <= '9' ? e[3] - '0' : (e[3] | 0x20) - 'a' + 10;
-            gfx_set_segment(hi * 16 + lo, L->pack.data + BE32(e + 4));
+            gfx_set_segment_sized(hi * 16 + lo, L->pack.data + BE32(e + 4), BE32(e + 8));
         }
     }
     if ((p = pack_find(&L->pack, "LVL2", NULL))) {
@@ -311,6 +311,7 @@ int level_load(const void *pack_mem, u32 size, u8 *col_work, u32 col_work_size) 
         ob->x = ob->hx = BES16(o + 2); ob->y = BES16(o + 4); ob->z = ob->hz = BES16(o + 6);
         ob->yaw = BE16(o + 8); ob->param = BE16(o + 10);
         if (type == OBJ_COIN) L->coins_total++;
+        if (type == OBJ_RED_COIN) L->red_coins_total++;
     }
     return 0;
 }

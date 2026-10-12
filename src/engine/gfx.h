@@ -92,6 +92,7 @@ extern GfxStats gGfxStats;
 
 void gfx_init(u16 *colorbuf, u16 *zbuf, int width, int height, u8 *texcache, u32 texcache_size);
 void gfx_set_segment(int seg, const void *base);
+void gfx_set_segment_sized(int seg, const void *base, u32 size);
 const u8 *gfx_seg_to_ptr(u32 addr);
 /* fov_deg: vertical field of view, near/far in world units */
 void gfx_set_perspective(int fov_deg, s32 near_z, s32 far_z);

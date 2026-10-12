@@ -136,9 +136,9 @@ int main(int argc, char **argv) {
         game_render(1, 300);
         tris += gGfxStats.tris_drawn; px += gGfxStats.pixels;
         const Player *p = &gGame.p;
-        if (lf) fprintf(lf, "%d x=%d y=%d z=%d act=%d ground=%d fwd=%d vy=%d coins=%d health=%d stars=%d tris=%u px=%u cam=%d,%d,%d foc=%d,%d,%d pitch=%d ray=%d\n", f,
+        if (lf) fprintf(lf, "%d x=%d y=%d z=%d act=%d ground=%d fwd=%d vy=%d coins=%d red=%d health=%d stars=%d tris=%u px=%u cam=%d,%d,%d foc=%d,%d,%d pitch=%d ray=%d\n", f,
                         p->x >> 8, p->y >> 8, p->z >> 8, p->action, p->on_ground, p->fwd >> 8, p->vy >> 8, p->coins,
-                        p->health, p->stars, gGfxStats.tris_drawn, gGfxStats.pixels, gGame.cam.x, gGame.cam.y, gGame.cam.z, gGame.cam.fx, gGame.cam.fy, gGame.cam.fz, gGame.cam.pitch, col_segment_hit(gGame.cam.fx, gGame.cam.fy, gGame.cam.fz, gGame.cam.x, gGame.cam.y, gGame.cam.z));
+                        p->red_coins, p->health, p->stars, gGfxStats.tris_drawn, gGfxStats.pixels, gGame.cam.x, gGame.cam.y, gGame.cam.z, gGame.cam.fx, gGame.cam.fy, gGame.cam.fz, gGame.cam.pitch, col_segment_hit(gGame.cam.fx, gGame.cam.fy, gGame.cam.fz, gGame.cam.x, gGame.cam.y, gGame.cam.z));
         int shoot = shot_every && (f % shot_every == shot_every - 1);
         for (int k = 0; k < nshots; k++) if (shots[k] == f) shoot = 1;
         if (shoot) {
@@ -150,8 +150,8 @@ int main(int argc, char **argv) {
     printf("frames=%d avg_tris=%.1f avg_pixels=%.0f host_ms_per_frame=%.3f\n", frames, (double)tris / frames,
            (double)px / frames, secs * 1000.0 / frames);
     const Player *p = &gGame.p;
-    printf("final x=%d y=%d z=%d act=%d coins=%d health=%d stars=%d\n", p->x >> 8, p->y >> 8, p->z >> 8, p->action,
-           p->coins, p->health, p->stars);
+    printf("final x=%d y=%d z=%d act=%d coins=%d red=%d health=%d stars=%d\n", p->x >> 8, p->y >> 8, p->z >> 8, p->action,
+           p->coins, p->red_coins, p->health, p->stars);
     if (sRouteLen) printf("route: reached waypoint %d/%d\n", sRouteIdx, sRouteLen);
     if (lf) fclose(lf);
     return 0;

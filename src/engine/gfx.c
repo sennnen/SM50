@@ -11,6 +11,7 @@ static s32 sFocalX, sFocalY; /* Q4 pixels at depth 1 */
 static s32 sCenterX, sCenterY; /* Q4 */
 static s32 sNear = 64, sFar = 16000;
 static const u8 *sSegments[GFX_MAX_SEGMENTS];
+static u32 sSegmentSizes[GFX_MAX_SEGMENTS];
 
 static Mat34 sView, sModel, sModelView;
 #define MTX_STACK 10
@@ -84,6 +85,7 @@ void gfx_init(u16 *colorbuf, u16 *zbuf, int width, int height, u8 *texcache, u32
     sTexMem = texcache; sTexMemSize = texcache_size; sTexMemUsed = 0;
     memset(sTexCache, 0, sizeof(sTexCache));
     memset(sSegments, 0, sizeof(sSegments));
+    memset(sSegmentSizes, 0, sizeof(sSegmentSizes));
     gfx_set_perspective(45, 64, 16000);
     mat_identity(&sView); mat_identity(&sModel); mat_identity(&sModelView);
     gfx_reset_state();
@@ -99,13 +101,29 @@ int gfx_height(void) { return sH; }
 u16 *gfx_colorbuf(void) { return sColor; }
 
 void gfx_set_segment(int seg, const void *base) {
-    if (seg >= 0 && seg < GFX_MAX_SEGMENTS) sSegments[seg] = (const u8 *)base;
+    gfx_set_segment_sized(seg, base, 0);
 }
 
-const u8 *gfx_seg_to_ptr(u32 addr) {
+void gfx_set_segment_sized(int seg, const void *base, u32 size) {
+    if (seg >= 0 && seg < GFX_MAX_SEGMENTS) {
+        sSegments[seg] = (const u8 *)base;
+        sSegmentSizes[seg] = size;
+    }
+}
+
+static const u8 *seg_to_ptr_span(u32 addr, u32 bytes) {
     u32 seg = (addr >> 24) & 0x1F;
-    if (sSegments[seg] == NULL) return NULL;
-    return sSegments[seg] + (addr & 0x00FFFFFF);
+    u32 off = addr & 0x00FFFFFF;
+    if (!sSegments[seg] || (sSegmentSizes[seg] &&
+        (off >= sSegmentSizes[seg] || bytes > sSegmentSizes[seg] - off))) return NULL;
+    return sSegments[seg] + off;
+}
+
+const u8 *gfx_seg_to_ptr(u32 addr) { return seg_to_ptr_span(addr, 1); }
+
+static const u8 *seg_end(u32 addr) {
+    u32 seg = (addr >> 24) & 0x1F;
+    return sSegments[seg] && sSegmentSizes[seg] ? sSegments[seg] + sSegmentSizes[seg] : NULL;
 }
 
 void gfx_set_perspective(int fov_deg, s32 near_z, s32 far_z) {
@@ -215,9 +233,11 @@ static TexEntry *tex_lookup(u32 addr, u32 pal, int fmt, int siz, int w, int h) {
     if (bytes > sTexMemSize) return NULL;
     if (sTexMemUsed + bytes > sTexMemSize || free_e == NULL) { tex_evict_all(); free_e = &sTexCache[0]; }
     (void)old;
-    const u8 *src = gfx_seg_to_ptr(addr);
+    u32 src_bytes = (u32)w * h * (siz == G_IM_SIZ_32b ? 4 : siz == G_IM_SIZ_16b ? 2 : siz == G_IM_SIZ_8b ? 1 : 0);
+    if (siz == G_IM_SIZ_4b) src_bytes = ((u32)w * h + 1) / 2;
+    const u8 *src = seg_to_ptr_span(addr, src_bytes);
     if (!src) return NULL;
-    const u8 *psrc = pal ? gfx_seg_to_ptr(pal) : NULL;
+    const u8 *psrc = pal ? seg_to_ptr_span(pal, siz == G_IM_SIZ_4b ? 32 : 512) : NULL;
     TexEntry *e = free_e;
     e->key_addr = addr; e->key_pal = pal; e->fmt = (u8)fmt; e->siz = (u8)siz; e->w = (u16)w; e->h = (u16)h;
     e->data = (u16 *)(sTexMem + sTexMemUsed); sTexMemUsed += (bytes + 3) & ~3u;
@@ -701,16 +721,17 @@ static void decode_combine(u32 w0, u32 w1) {
     if (!sCombTex && !sCombShade && !sCombPrim && !sCombEnv) sCombShade = 1;
 }
 
-static void run_dl(const u8 *dl, int depth) {
+static void run_dl(const u8 *dl, const u8 *end, int depth) {
     if (!dl || depth > 10) return;
     for (int guard = 0; guard < 100000; guard++, dl += 8) {
+        if (end && dl + 8 > end) return;
         u32 w0 = BE32(dl), w1 = BE32(dl + 4);
         u8 op = w0 >> 24;
         gGfxStats.dl_cmds++;
         switch (op) {
             case G_VTX: {
                 int n = ((w0 >> 20) & 0xF) + 1, v0 = (w0 >> 16) & 0xF;
-                load_vertices(gfx_seg_to_ptr(w1), n, v0);
+                load_vertices(seg_to_ptr_span(w1, (u32)n * 16), n, v0);
                 break;
             }
             case G_TRI1:
@@ -718,14 +739,14 @@ static void run_dl(const u8 *dl, int depth) {
                 break;
             case G_DL: {
                 const u8 *sub = gfx_seg_to_ptr(w1);
-                if ((w0 >> 16) & 0xFF) { dl = sub - 8; if (!sub) return; continue; } /* branch, no push */
-                run_dl(sub, depth + 1);
+                if ((w0 >> 16) & 0xFF) { if (!sub) return; dl = sub - 8; end = seg_end(w1); continue; } /* branch, no push */
+                run_dl(sub, seg_end(w1), depth + 1);
                 break;
             }
             case G_ENDDL: return;
             case G_MTX: {
                 int params = (w0 >> 16) & 0xFF;
-                const u8 *p = gfx_seg_to_ptr(w1);
+                const u8 *p = seg_to_ptr_span(w1, 64);
                 if (!p || (params & 1)) break; /* projection matrices are owned by the engine */
                 Mat34 m; load_n64_mtx(&m, p);
                 if ((params & 4) && sMtxSP < MTX_STACK) sMtxStack[sMtxSP++] = sModelView;
@@ -739,7 +760,7 @@ static void run_dl(const u8 *dl, int depth) {
                 break;
             case G_MOVEMEM: {
                 int idx = (w0 >> 16) & 0xFF;
-                const u8 *p = gfx_seg_to_ptr(w1);
+                const u8 *p = seg_to_ptr_span(w1, 12);
                 if (!p) break;
                 if (idx >= G_MV_L0 && idx <= G_MV_L0 + 14) {
                     int l = (idx - G_MV_L0) / 2;
@@ -813,8 +834,8 @@ static void run_dl(const u8 *dl, int depth) {
     }
 }
 
-void gfx_run_dl_ptr(const u8 *dl) { run_dl(dl, 0); }
-void gfx_run_dl(u32 seg_addr) { run_dl(gfx_seg_to_ptr(seg_addr), 0); }
+void gfx_run_dl_ptr(const u8 *dl) { run_dl(dl, NULL, 0); }
+void gfx_run_dl(u32 seg_addr) { run_dl(gfx_seg_to_ptr(seg_addr), seg_end(seg_addr), 0); }
 
 /* -------------------------------------------------------------- 2D / HUD */
 void gfx_fill_rect(int x, int y, int w, int h, u16 color) {

@@ -154,9 +154,11 @@ def build(manifest, base_dir, log=print):
         if script["macro_objects"] != num(m.get("sm64_macro_objects", -1)):
             raise ValueError("level-script macro pointer differs from object manifest")
         model_types = {num(k): num(v) for k, v in spec.get("model_types", {}).items()}
-        mapped = [(model_types[model], x, y, z, (yaw * 65536 // 360) & 0xFFFF, (param >> 16) & 0xFFFF)
+        behavior_types = {num(k): num(v) for k, v in spec.get("behavior_types", {}).items()}
+        mapped = [(behavior_types.get(behaviour, model_types.get(model)), x, y, z,
+                   (yaw * 65536 // 360) & 0xFFFF, (param >> 16) & 0xFFFF)
                   for model, x, y, z, pitch, yaw, roll, param, behaviour in script["objects"]
-                  if model in model_types]
+                  if behaviour in behavior_types or model in model_types]
         objects += mapped
         if "spawn_warp" in spec:
             warp_id = num(spec["spawn_warp"])
@@ -183,12 +185,14 @@ def build(manifest, base_dir, log=print):
             pw.add("MSCL", struct.pack(">I", len(models)) + b"".join(
                 struct.pack(">H", num(model.get("scale14", 0))) for model in models))
     if m.get("sm64_mario"):
-        skeleton, animations, player = sm64_mario.build(segs, f3d.walk)
+        spec = m["sm64_mario"]
+        skeleton, animations, player, metadata = sm64_mario.build(
+            segs, f3d.walk, rom, num(spec["animations_rom"]))
         pw.add("SKEL", skeleton)
         pw.add("ANIM", animations)
         pw.add("PLYR", player)
-        log("Mario: %d ROM mesh parts, %d generated pose sequences" %
-            (len(sm64_mario.PARTS), 8))
+        log("Mario: %d native geo joints, %d native ROM animations %s" %
+            (len(sm64_mario.PARTS), len(metadata), metadata))
     sp = [num(v) for v in m["spawn"]] if "spawn" in m else (rom_spawn or [0, 0, 0, 0])
     sky = m.get("sky", ["#5D9FFF", "#B6FFFF"])
     name = m.get("name", "N64 SCENE").upper().encode()[:16]

@@ -21,13 +21,15 @@
     "entry": "0x0E000264",
     "act": 1,
     "spawn_warp": 10,
-    "model_types": {"0x7A": 2}
+    "model_types": {"0x7A": 2},
+    "behavior_types": {"0x13003E8C": 7}
   },
-  "sm64_mario": true,
-  "sm64_macro_types": {"0": 1, "1": 1, "15": 1, "16": 1, "17": 1, "18": 1, "19": 1},
+  "sm64_mario": {"animations_rom": "0x4EC000"},
+  "sm64_macro_types": {"0": 1, "1": 1, "4": 6, "15": 1, "16": 1, "17": 1, "18": 1, "19": 1},
   "models": [
     {"dl": "0x03007800", "radius": 80, "billboard": true},
-    {"dl": "0x0302B870", "radius": 100, "scale14": 4096}
+    {"dl": "0x0302B870", "radius": 100, "scale14": 4096},
+    {"dl": "0x03007940", "radius": 80, "billboard": true}
   ],
   "name": "BOB-OMB BATTLEFIELD",
   "sky": ["#79B9FF", "#C8E6FF"]

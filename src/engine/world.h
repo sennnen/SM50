@@ -45,6 +45,8 @@ int col_floor_normal(s32 x, s32 y, s32 z, s32 *nx, s32 *nz);
 #define OBJ_TREE 3
 #define OBJ_SPAWN 4
 #define OBJ_BLOB 5
+#define OBJ_RED_COIN 6
+#define OBJ_RED_STAR_TRIGGER 7
 
 typedef struct {
     u32 dl; s16 x, y, z, radius; u8 layer; s16 tx, ty, tz; /* layer: 0 opaque, 1 alpha-test, 2 translucent */
@@ -63,7 +65,7 @@ typedef struct {
 #define MAX_OBJS 96
 #define MAX_CHUNKS 64
 #define MAX_MODELS 16
-#define MAX_PARTS 16
+#define MAX_PARTS 24
 #define MAX_ANIMS 16
 
 typedef struct {
@@ -88,6 +90,7 @@ typedef struct {
     Part parts[MAX_PARTS]; int n_parts;
     Anim anims[MAX_ANIMS]; int n_anims;
     int coins_total;
+    int red_coins_total;
 } Level;
 
 extern Level gLevel;

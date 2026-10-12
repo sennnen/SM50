@@ -2,8 +2,9 @@
 
 This project has an original fixed-point calculator engine and a converter for
 data in a user-supplied Super Mario 64 ROM. It now renders **actual Bob-omb
-Battlefield geometry and low-poly Mario meshes from the US ROM**. Movement,
-camera and current character poses are independently implemented approximations.
+Battlefield geometry, low-poly Mario meshes and selected Mario animations from
+the US ROM**. Its ROM-placed red coins reveal a hidden star when all eight are
+collected. Movement and camera remain independently implemented approximations.
 The complete game is **not yet playable**; see [docs/PROGRESS.md](docs/PROGRESS.md).
 
 No ROM or extracted Nintendo assets are in this repository. The canonical US
