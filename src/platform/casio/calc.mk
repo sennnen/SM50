@@ -1,5 +1,5 @@
 # fx-CG50 add-in build (included from the top-level Makefile).
-SH_PREFIX ?= /opt/sh-elf/bin/sh-elf-
+SH_PREFIX ?= $(if $(wildcard ../../.toolchain/prefix/bin/sh-elf-gcc),../../.toolchain/prefix/bin/sh-elf-,/opt/sh-elf/bin/sh-elf-)
 SH_CC := $(SH_PREFIX)gcc
 SH_OBJCOPY := $(SH_PREFIX)objcopy
 CALC_DIR := build/calc
@@ -8,6 +8,22 @@ CALC_CFLAGS := -m4-nofpu -mb -O2 -ffreestanding -nostdlib -fno-pie -fno-builtin-
 CALC_SRC := $(ENGINE) src/platform/casio/main.c src/platform/casio/libc_min.c
 CALC_ASM := src/platform/casio/crt0.S src/platform/casio/syscalls.S
 CALC_NAME ?= SM50
+# Optional native recompilation probe. It builds a single Q12 ground-slide
+# update from the local PS1 source port into an alternate add-in, without
+# changing the normal SM50 target. Set PS1_PORT to the local reference tree.
+PS1_PORT ?= ../psx2
+ifeq ($(SM50_NATIVE_PROBE),1)
+CALC_PS1_CFLAGS := -m4-nofpu -mb -O2 -ffreestanding -fno-builtin -fno-pic \
+	-ffunction-sections -fdata-sections -std=gnu2x -DNON_MATCHING=1 -DAVOID_UB=1 \
+	-I$(PS1_PORT)/include -I$(PS1_PORT)/src -I$(PS1_PORT) \
+	-I$(PS1_PORT)/include/libc -I$(PS1_PORT)/ps1 -I$(PS1_PORT)/ps1-bare-metal \
+	-I$(PS1_PORT)/ps1-bare-metal/libc -DENABLE_RUMBLE=0 -DRUMBLE_GRAPHIC=0
+CALC_PS1_OBJECTS := $(CALC_DIR)/native/mario_actions_moving.c.o \
+	$(CALC_DIR)/native/math_util.c.o $(CALC_DIR)/native/fract_math.c.o \
+	$(CALC_DIR)/native/float_math.c.o \
+	$(CALC_DIR)/native/ps1_softfloat_bridge.c.o \
+	$(CALC_DIR)/native/native_sm64_movement_probe.c.o
+endif
 # CALC_EMBED=1 links content/sm50.pack into the add-in (test builds); otherwise the
 # data pack is appended at install time by tools/build-g3a.py.
 CALC_EMBED ?= 0
@@ -20,10 +36,29 @@ endif
 
 calc: $(CALC_DIR)/$(CALC_NAME).g3a
 
-$(CALC_DIR)/$(CALC_NAME).elf: $(CALC_SRC) $(CALC_ASM) src/platform/casio/pack.S src/platform/casio/prizm.ld content/sm50.pack src/engine/*.h
+$(CALC_DIR)/$(CALC_NAME).elf: $(CALC_SRC) $(CALC_ASM) $(CALC_PS1_OBJECTS) src/platform/casio/pack.S src/platform/casio/prizm.ld content/sm50.pack src/engine/*.h
 	@mkdir -p $(CALC_DIR)
 	$(SH_CC) $(CALC_CFLAGS) -T src/platform/casio/prizm.ld -Wl,--gc-sections -Wl,-Map,$(CALC_DIR)/$(CALC_NAME).map \
-		-DSM50_PACK_PATH='"content/sm50.pack"' -o $@ $(CALC_ASM) $(CALC_PACK_OBJ) $(CALC_SRC) -lgcc
+		-DSM50_PACK_PATH='"content/sm50.pack"' -o $@ $(CALC_ASM) $(CALC_PACK_OBJ) $(CALC_SRC) $(CALC_PS1_OBJECTS) -lgcc
+
+$(CALC_DIR)/native/mario_actions_moving.c.o: $(PS1_PORT)/src/game/mario_actions_moving.c
+	@mkdir -p $(CALC_DIR)/native
+	$(SH_CC) $(CALC_PS1_CFLAGS) -c $< -o $@
+$(CALC_DIR)/native/math_util.c.o: $(PS1_PORT)/src/engine/math_util.c
+	@mkdir -p $(CALC_DIR)/native
+	$(SH_CC) $(CALC_PS1_CFLAGS) -Dapproach_s32=ps1_approach_s32 -c $< -o $@
+$(CALC_DIR)/native/fract_math.c.o: $(PS1_PORT)/src/port/fract_math.c
+	@mkdir -p $(CALC_DIR)/native
+	$(SH_CC) $(CALC_PS1_CFLAGS) -c $< -o $@
+$(CALC_DIR)/native/float_math.c.o: $(PS1_PORT)/src/port/float_math.c
+	@mkdir -p $(CALC_DIR)/native
+	$(SH_CC) $(CALC_PS1_CFLAGS) -Dqtof=ps1_qtof -Dftoq=ps1_ftoq -c $< -o $@
+$(CALC_DIR)/native/ps1_softfloat_bridge.c.o: src/platform/casio/ps1_softfloat_bridge.c
+	@mkdir -p $(CALC_DIR)/native
+	$(SH_CC) $(CALC_PS1_CFLAGS) -c $< -o $@
+$(CALC_DIR)/native/native_sm64_movement_probe.c.o: tests/native_sm64_movement_probe.c
+	@mkdir -p $(CALC_DIR)/native
+	$(SH_CC) $(CALC_PS1_CFLAGS) -c $< -o $@
 
 $(CALC_DIR)/$(CALC_NAME).bin: $(CALC_DIR)/$(CALC_NAME).elf
 	$(SH_OBJCOPY) -O binary -R .bss $< $@

@@ -26,6 +26,9 @@ build/host/sm50-host: $(ENGINE) src/platform/host/main.c src/engine/*.h
 
 include src/platform/casio/calc.mk
 
+calc-native-probe:
+	$(MAKE) calc CALC_NAME=SM64NativeProbe SM50_NATIVE_PROBE=1 CALC_EXTRA='-DSM50_NATIVE_PROBE -DSM50_EMU_DEBUG'
+
 test: host content
 	python3 tests/run_tests.py
 
@@ -35,4 +38,4 @@ test-rom: host
 clean:
 	rm -rf build
 
-.PHONY: all content host calc test test-rom clean
+.PHONY: all content host calc calc-native-probe test test-rom clean

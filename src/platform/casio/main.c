@@ -35,6 +35,11 @@ static u8 sColWork[24 * 1024] __attribute__((aligned(4)));
 #ifdef SM50_EMBED_PACK
 extern const u8 sm50_pack_start[], sm50_pack_end[];
 #endif
+#ifdef SM50_NATIVE_PROBE
+extern int native_sm64_movement_probe(void);
+extern volatile s32 native_sm64_probe_slide_z_q12;
+extern volatile s32 native_sm64_probe_walk_speed_q12;
+#endif
 extern const u8 rom_image_end[];
 
 /* Locate the data pack: appended after the add-in image by tools/build-g3a.py
@@ -161,6 +166,12 @@ int main(void) {
         message("SM50: game data pack failed", buf);
         int k; for (;;) GetKey(&k);
     }
+#ifdef SM50_NATIVE_PROBE
+    int native_probe_ok = native_sm64_movement_probe();
+    DBG("SM64 Q12 %s slide=%d walk=%d",
+        native_probe_ok ? "PASS" : "FAIL", native_sm64_probe_slide_z_q12,
+        native_sm64_probe_walk_speed_q12);
+#endif
     DBG("level loaded: %d chunks %d objs", gLevel.n_chunks, gLevel.n_objs);
     int last = RTC_GetTicks();
     int acc = 0; /* in 1/128 s * 30 units */

@@ -51,10 +51,38 @@ only under ignored `build/`.
 The `port/` Git checkout was made from the GitHub SM50 branch. The separate
 local `sm64/` experiment, including its PS1 port and fx-CG50 renderer test,
 was left intact. The SM50 engine already had a pack loader, a fixed-point
-renderer, collision and a headless emulator, so it became the integration
-base. The PS1 port remains a useful reference, but its unresolved build and
-licensing questions made it a poor replacement for the calculator engine.
+renderer, collision and a headless emulator, so it remains the integration
+base. The game-logic direction is now native recompilation: port the canonical
+decompilation's Mario/action/object/level code and keep this renderer behind a
+backend boundary. The PS1 project is being used as a source-port and memory
+optimization case study rather than copied as a whole.
 
-The next substantive work is fuller King Bob-omb behavior and enough scene/level scripting
-to enter and complete that mission. Rendering fidelity and resolution should
-be reduced as needed after measuring on hardware.
+## Native recompilation experiment — 12 October 2026
+
+- The local PS1 port identifies itself as a fork of the full SM64 decompilation
+  and keeps the original C gameplay/action organization while replacing
+  platform-specific input, audio, display-list, render-graph and math paths.
+- The PS1 port mixes fixed-point hot paths and float state; it does not simply
+  convert all game math to integers. Its selective Q12 approach is more useful
+  here than wholesale float replacement.
+- Six original/PS1-source translation units compile for SH4. With function
+  section garbage collection, the add-in retains and executes the original
+  walking-speed update, slope acceleration, Q12 slide update and math bridge.
+  The probe runs beside the real ROM-derived Battlefield renderer in the
+  headless calculator emulator. After 30 ticks, walking speed is 98099/4096
+  units and slope velocity is 4110/4096 units.
+- The PS1 port's float/Q12 bridge used bitfield ordering that returned zero on
+  this big-endian SH4 target. An endian-safe local bridge fixes that issue;
+  direct tests confirm Q12 158 round-trips and 0.5 converts correctly.
+- The existing linker map limits `.data + .bss` to 320 KiB and reserves 192
+  KiB for stack. Preview data+BSS uses 181,092 bytes; the probe uses 203,668
+  bytes, mostly due to Q12 lookup tables. The emulator reports a separate
+  256 KiB allocator arena, which is not yet confirmed on hardware.
+
+This is a successful native-code experiment, not yet an original game loop:
+Mario's full action dispatcher, collision queries, object behavior scripts,
+level scripts, camera, save/progression and animations are still not running
+from original game code. The next integration step is the original per-frame
+Mario/action dispatcher connected to ROM-derived collision surfaces. Then
+bring up level/area scripts and object behaviors with bounded object pools and
+flash-resident level/animation data. Keep the existing renderer as the backend.

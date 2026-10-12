@@ -1,12 +1,16 @@
-# SM64 on the fx-CG50: ROM-driven port in progress
+# Super Mario 64 on the fx-CG50: native port in progress
 
-This project has an original fixed-point calculator engine and a converter for
-data in a user-supplied Super Mario 64 ROM. It now renders **actual Bob-omb
-Battlefield geometry, low-poly Mario meshes and selected Mario animations from
-the US ROM**. Its ROM-placed red coins reveal a hidden star when all eight are
-collected. Movement and camera remain independently implemented approximations.
-King Bob-omb is ROM-placed and has a simplified grab/throw encounter.
-The complete game is **not yet playable**; see [docs/PROGRESS.md](docs/PROGRESS.md).
+The project is shifting from a ROM-rendered preview to a native recompilation
+of Super Mario 64's original gameplay code. The existing renderer and ROM
+pipeline remain in place as candidate backends. A SH4 experiment now compiles
+and executes original-derived walking acceleration and Q12 slope movement
+alongside ROM-derived Bob-omb Battlefield geometry. This is a narrow porting
+probe, **not the full game**; see [docs/PROGRESS.md](docs/PROGRESS.md) and
+[docs/NATIVE_RECOMPILATION.md](docs/NATIVE_RECOMPILATION.md).
+
+The existing preview still renders actual Battlefield geometry, Mario meshes
+and animations, and simplified coin/star/boss interactions. Its player movement,
+camera and gameplay are approximations and are not the intended final game.
 
 No ROM or extracted Nintendo assets are in this repository. The canonical US
 ROM (SHA-1 `9bef1128717f958171a4afac3ed78ee2bb4e86ce`) is needed locally.
@@ -43,7 +47,14 @@ Set `SM50EMU=/path/to/sm50emu` to include the calculator emulator in
 `test-rom`. `make test` runs the 19 original synthetic groups. `make calc`
 rebuilds the engine when an `sh-elf` toolchain is available.
 
-The converter, renderer and engine are independently written. The
-[SM64 decompilation](https://github.com/n64decomp/sm64) and the local PS1
-port were used as technical references for ROM formats and addresses; no
-decompiled game source is included in this repository.
+To compile the native movement probe and run it with a local ROM in the
+calculator emulator:
+
+```sh
+python3 tools/build_native_probe.py --rom "/path/to/your/sm64.us.z64"
+```
+
+The ROM converter and renderer are independently written. The canonical
+[SM64 decompilation](https://github.com/n64decomp/sm64) is now the intended
+game-logic source base; the local PS1 port is a technical reference. No ROM,
+extracted assets or third-party game source are committed here.
