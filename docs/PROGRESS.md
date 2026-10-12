@@ -172,6 +172,8 @@ This is a successful native-code action-group and coin-behavior integration,
 not yet the original game loop: most level objects and behavior scripts,
 cutscene actions, complete level-script execution, original camera,
 save/progression and audio are still missing.
-The next integration step is a bounded canonical object pool and behavior
-runtime connected to Bob-omb Battlefield's parsed spawns, while retaining the
-current ROM-backed renderer and flash-resident level data.
+The next integration step is to promote this canonical loop out of the probe
+build, instantiate the level-script `SOBJ` placements in the same object pool,
+and add original behavior paths such as red-coin progression and the Battlefield
+enemies. The existing ROM-backed renderer and flash-resident level data remain
+the platform backend.
