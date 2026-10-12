@@ -34,6 +34,10 @@ CALC_CANONICAL_CFLAGS := -m4-nofpu -mb -O2 -ffreestanding -fno-builtin -fno-pic 
 	-I$(CANONICAL_SM64)/include -I$(CANONICAL_SM64)/src -I$(CANONICAL_SM64) -I$(CANONICAL_SM64)/pc
 CALC_CANONICAL_OBJECTS := $(CALC_DIR)/canonical/mario_actions_moving.c.o \
 	$(CALC_DIR)/canonical/mario_actions_airborne.c.o \
+	$(CALC_DIR)/canonical/mario_actions_stationary.c.o \
+	$(CALC_DIR)/canonical/mario_actions_submerged.c.o \
+	$(CALC_DIR)/canonical/mario_actions_automatic.c.o \
+	$(CALC_DIR)/canonical/mario_actions_object.c.o \
 	$(CALC_DIR)/canonical/mario.c.o \
 	$(CALC_DIR)/canonical/mario_step.c.o \
 	$(CALC_DIR)/canonical/math_util.c.o $(CALC_DIR)/canonical/surface_collision.c.o \
@@ -84,6 +88,22 @@ $(CALC_DIR)/canonical/mario_actions_moving.c.o: $(CANONICAL_SM64)/src/game/mario
 	$(SH_CC) $(CALC_CANONICAL_CFLAGS) -Dset_mario_animation=sm50_set_mario_animation \
 		-Dset_mario_anim_with_accel=sm50_set_mario_anim_with_accel -c $< -o $@
 $(CALC_DIR)/canonical/mario_actions_airborne.c.o: $(CANONICAL_SM64)/src/game/mario_actions_airborne.c
+	@mkdir -p $(CALC_DIR)/canonical
+	$(SH_CC) $(CALC_CANONICAL_CFLAGS) -Dset_mario_animation=sm50_set_mario_animation \
+		-Dset_mario_anim_with_accel=sm50_set_mario_anim_with_accel -c $< -o $@
+$(CALC_DIR)/canonical/mario_actions_stationary.c.o: $(CANONICAL_SM64)/src/game/mario_actions_stationary.c
+	@mkdir -p $(CALC_DIR)/canonical
+	$(SH_CC) $(CALC_CANONICAL_CFLAGS) -Dset_mario_animation=sm50_set_mario_animation \
+		-Dset_mario_anim_with_accel=sm50_set_mario_anim_with_accel -c $< -o $@
+$(CALC_DIR)/canonical/mario_actions_submerged.c.o: $(CANONICAL_SM64)/src/game/mario_actions_submerged.c
+	@mkdir -p $(CALC_DIR)/canonical
+	$(SH_CC) $(CALC_CANONICAL_CFLAGS) -Dset_mario_animation=sm50_set_mario_animation \
+		-Dset_mario_anim_with_accel=sm50_set_mario_anim_with_accel -c $< -o $@
+$(CALC_DIR)/canonical/mario_actions_automatic.c.o: $(CANONICAL_SM64)/src/game/mario_actions_automatic.c
+	@mkdir -p $(CALC_DIR)/canonical
+	$(SH_CC) $(CALC_CANONICAL_CFLAGS) -Dset_mario_animation=sm50_set_mario_animation \
+		-Dset_mario_anim_with_accel=sm50_set_mario_anim_with_accel -c $< -o $@
+$(CALC_DIR)/canonical/mario_actions_object.c.o: $(CANONICAL_SM64)/src/game/mario_actions_object.c
 	@mkdir -p $(CALC_DIR)/canonical
 	$(SH_CC) $(CALC_CANONICAL_CFLAGS) -Dset_mario_animation=sm50_set_mario_animation \
 		-Dset_mario_anim_with_accel=sm50_set_mario_anim_with_accel -c $< -o $@

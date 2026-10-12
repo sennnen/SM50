@@ -49,6 +49,7 @@ the game-state and renderer buffers occupy RAM.
 | Existing preview | 116,056 B | 48 B | 181,044 B | 181,092 B |
 | Preview + native probe | 127,720 B | 22,580 B | 181,100 B | 203,680 B |
 | Canonical ground-step probe | 133,644 B | 22,628 B | 193,420 B | 216,048 B |
+| Six canonical action groups | 208,508 B | 22,900 B | 194,496 B | 217,396 B |
 
 The probe adds 22,532 bytes of initialized data, principally the Q12
 sine/arctangent tables. This leaves about 124 KiB inside the current static
@@ -82,17 +83,15 @@ of 99 links in one cell. Exact-sized canonical arrays use 93,600 bytes,
 python3 tools/analyze_sm64_ram.py build/native-sm64-probe/bob.pack
 ```
 
-The canonical ground-step probe uses 216,048 bytes of static data+BSS,
-including its two 16-by-16 partitions. Adding a 64-object pool would bring it
-to 254,960 bytes of the 320 KiB static allowance, leaving about 71 KiB for
-remaining gameplay globals and native tables. The canonical surface and link
-arrays use 93,600 bytes of the separate allocator; the probe reserves 6,000
-links, so the emulator reports 98,880 bytes allocated. Its 256 KiB heap is an
+The six-group action probe uses 217,396 bytes of static data+BSS, including
+its two 16-by-16 partitions. Adding the measured 38,912-byte 64-object pool
+would bring it to 256,308 bytes of the 320 KiB static allowance, leaving
+71,372 bytes for other gameplay state. The canonical surface and link arrays
+use 93,600 bytes of the separate allocator; the probe reserves 6,000 links,
+so the emulator reports 98,880 bytes allocated. Its 256 KiB heap is an
 emulator measurement only; physical calculator heap capacity remains unknown.
-This is viable for a first-level build but must be rechecked as the game loop
-and object behaviors are integrated. The link arrays need headroom for dynamic
-surfaces and alternate levels, so 5,340 is only the measured Battlefield
-static-collision count.
+The link arrays need headroom for dynamic surfaces and alternate levels, so
+5,340 is only the measured Battlefield static-collision count.
 
 ## SH4 experiment
 
@@ -116,22 +115,26 @@ linked partitions from the ROM's 1,060 collision triangles. It runs the
 decompilation's own `find_floor`, wall and ceiling collision queries,
 `update_walking_speed`, and `perform_ground_step` for 30 consecutive ticks on
 that geometry. The emulator reports floor height 0, normal Y 16384 (Q14),
-walking speed 98099/4096, and 413.1 units of forward movement. In the
-canonical-probe add-in, calculator arrows now drive the decompilation's
-original `act_walking`, which owns its acceleration, ground step, input-driven
-jump transition, wall response and animation/audio calls. Jump input enters
-the original `set_mario_action(ACT_JUMP)` transition, then runs `act_jump`,
-`common_air_action_step`, `perform_air_step` and `act_jump_land`; `act_freefall`
-and its landing action handle falling from ground edges. These resolve against
-the same ROM-derived collision surfaces. Animation requests cross a platform
-hook and the existing renderer selects ROM-derived walk/jump/fall/landing
-clips from the canonical action phase. Sound and camera calls are platform
-stubs, and the complete moving and airborne action dispatchers are not yet
-connected. A 120-frame emulator run with scripted jump input completed without
-faults and rendered actual Battlefield geometry and Mario. Its 56 FPS
-instruction-count estimate is not a calculator measurement. The harness also
-retains adapters for renderer-independent globals and currently tested
-Battlefield terrain behavior.
+walking speed 98099/4096, and 413.1 units of diagnostic forward movement. The
+probe then resets Mario to the ROM's spawn position, yaw and zero velocity so
+the diagnostic does not affect play. Each game tick dispatches through the
+canonical stationary, moving, airborne, submerged, automatic or object action
+group.
+The movement input reaches `act_walking`; jumping reaches `set_mario_action`,
+`act_jump`, `common_air_action_step`, `perform_air_step` and original landing
+actions. The same original collision routines operate on the ROM-derived
+surfaces.
+
+The eight animation IDs already extracted from the ROM are mapped from
+canonical animation requests to the renderer's idle, walk, run, jump, fall,
+land, flip and hurt clips. Audio and camera remain platform stubs. Native
+object interactions are also still stubbed, and cutscene actions are not
+dispatched yet. A scripted run exercised a jump, movement and a double jump
+from the landing action. The 120-frame run completed without faults and
+rendered the ROM's Battlefield geometry and Mario. Its
+roughly 49 FPS instruction-count estimate is not a calculator measurement.
+The probe uses adapters for renderer-independent globals and unsupported game
+systems.
 
 Build and run this ROM-local experiment with:
 
@@ -151,18 +154,18 @@ To exercise the original jump/landing slice with scripted calculator input:
 
 ```sh
 python3 tools/build_native_probe.py --source canonical --frames 120 \
-  --keys tests/inputs/canonical-movement.keys --rom "/path/to/your/SM64 ROM.z64"
+  --keys tests/inputs/canonical-double-jump.keys --rom "/path/to/your/SM64 ROM.z64"
 ```
 
 The ROM-derived pack, add-in and logs are written under ignored `build/`.
 
 ## Next integration boundary
 
-The experiment now runs canonical walking, jumping, jump landing, freefall and
-collision steps with the decompilation's floor, wall and ceiling queries
-against ROM collision. It does not yet run the full Mario action dispatchers,
-object behavior VM, level scripts, camera or progression. The next port layer should
-generalize action dispatch beyond this jump slice, then add the Battlefield
-level/area script and object behavior execution needed for enemies and stars.
+The experiment now runs canonical stationary, moving, airborne, submerged,
+automatic and object action dispatch with the decompilation's floor, wall and
+ceiling queries against ROM collision. The cutscene action group, object
+behaviors, level scripts, original camera, audio and progression remain
+unconnected. The next port layer should replace object-interaction stubs with
+the native object pool, canonical behavior interpreter and Battlefield spawns.
 Keep rendering as a backend that consumes the resulting original game state
 and ROM geometry.

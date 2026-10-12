@@ -54,6 +54,8 @@ extern volatile s32 native_sm64_canonical_moved_z_q8;
 extern volatile s32 native_sm64_canonical_pos_x_q8;
 extern volatile s32 native_sm64_canonical_pos_y_q8;
 extern volatile s32 native_sm64_canonical_pos_z_q8;
+extern volatile u16 native_sm64_canonical_yaw;
+extern volatile s32 native_sm64_canonical_anim_index;
 extern volatile s32 native_sm64_canonical_speed_q12;
 #endif
 extern const u8 rom_image_end[];
@@ -61,10 +63,11 @@ extern const u8 rom_image_end[];
 #ifdef SM50_CANONICAL_PROBE
 void sm50_native_publish_mario(s32 x, s32 y, s32 z, u16 yaw, s32 speed,
                                s32 vertical_speed, s32 floor_y, s32 grounded,
-                               s32 landing) {
-    int anim = landing ? ANIM_LAND
+                               s32 landing, s32 animation) {
+    int anim = animation >= 0 && animation < gLevel.n_anims
+        ? animation : (landing ? ANIM_LAND
         : !grounded ? (vertical_speed > 0 ? ANIM_JUMP : ANIM_FALL)
-        : (speed ? ANIM_WALK : ANIM_IDLE);
+        : (speed ? ANIM_WALK : ANIM_IDLE));
     gGame.p.x = x; gGame.p.y = y; gGame.p.z = z;
     gGame.p.floor_y = floor_y; gGame.p.floor_ny = 16384;
     gGame.p.face_yaw = yaw; gGame.p.fwd = speed;
@@ -226,9 +229,11 @@ int main(void) {
         /* Publish canonical movement state to the existing renderer. */
         sm50_native_publish_mario(native_sm64_canonical_pos_x_q8,
                                   native_sm64_canonical_pos_y_q8,
-                                  native_sm64_canonical_pos_z_q8, 0,
-                                  native_sm64_canonical_speed_q12 >> 4, 0,
-                                  native_sm64_canonical_pos_y_q8, 1, 0);
+                                  native_sm64_canonical_pos_z_q8,
+                                  native_sm64_canonical_yaw,
+                                  0, 0,
+                                  native_sm64_canonical_pos_y_q8, 1, 0,
+                                  native_sm64_canonical_anim_index);
     }
 #endif
     DBG("level loaded: %d chunks %d objs", gLevel.n_chunks, gLevel.n_objs);
